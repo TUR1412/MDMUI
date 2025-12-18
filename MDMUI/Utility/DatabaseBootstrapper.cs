@@ -73,6 +73,9 @@ END";
             EnsureProductCategoryTableExists(connection);
             EnsureProductTableExists(connection);
             EnsureGetCategoryDescendantsFunctionExists(connection);
+
+            EnsureDepartmentTableExists(connection);
+            EnsureEmployeeTableExists(connection);
         }
 
         private static void EnsureRolesTableExists(SqlConnection connection)
@@ -296,6 +299,56 @@ END";
             }
         }
 
+        private static void EnsureDepartmentTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.Department', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Department (
+        DeptId VARCHAR(20) NOT NULL PRIMARY KEY,
+        DeptName NVARCHAR(50) NOT NULL,
+        ParentDeptId VARCHAR(20) NULL,
+        FactoryId VARCHAR(10) NOT NULL,
+        Description NVARCHAR(200) NULL,
+        CreateTime DATETIME NOT NULL CONSTRAINT DF_Department_CreateTime DEFAULT(GETDATE()),
+        ManagerEmployeeId VARCHAR(20) NULL,
+        CONSTRAINT FK_Department_Factory FOREIGN KEY (FactoryId) REFERENCES dbo.Factory(FactoryId)
+    );
+
+    CREATE INDEX IX_Department_FactoryId ON dbo.Department(FactoryId);
+    CREATE INDEX IX_Department_ParentDeptId ON dbo.Department(ParentDeptId);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureEmployeeTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.Employee', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Employee (
+        EmployeeId VARCHAR(20) NOT NULL PRIMARY KEY,
+        EmployeeName NVARCHAR(50) NOT NULL,
+        DeptId VARCHAR(20) NOT NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_Employee_Status DEFAULT(N'在职'),
+        CreateTime DATETIME NOT NULL CONSTRAINT DF_Employee_CreateTime DEFAULT(GETDATE()),
+        CONSTRAINT FK_Employee_Department FOREIGN KEY (DeptId) REFERENCES dbo.Department(DeptId)
+    );
+
+    CREATE INDEX IX_Employee_DeptId ON dbo.Employee(DeptId);
+    CREATE INDEX IX_Employee_Status ON dbo.Employee(Status);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         private static void EnsureCoreSeedData(SqlConnection connection)
         {
             int normalRoleId = EnsureRole(connection, "普通用户");
@@ -384,6 +437,11 @@ END";
             EnsureProductCategory(connection, "PC002-01", "冰箱", "PC002", "用于冷藏和冷冻食物");
             EnsureProductCategory(connection, "PC002-02", "洗衣机", "PC002", "用于清洗衣物");
             EnsureProductCategory(connection, "PC002-03", "空调", "PC002", "用于调节室内温度");
+
+            // 最小部门/员工种子数据（幂等、不覆盖）
+            EnsureDepartment(connection, "D001", "测试部门1", null, "F001", "这是测试部门的描述信息", null);
+            EnsureEmployee(connection, "EMP001", "张三", "D001", "在职");
+            EnsureEmployee(connection, "EMP002", "李四", "D001", "在职");
         }
 
         private static int EnsureRole(SqlConnection connection, string roleName)
@@ -472,6 +530,74 @@ VALUES (@FactoryId, @FactoryName, @Address, @Manager, @Phone);";
                 insertCmd.Parameters.AddWithValue("@Address", (object)address ?? DBNull.Value);
                 insertCmd.Parameters.AddWithValue("@Manager", (object)manager ?? DBNull.Value);
                 insertCmd.Parameters.AddWithValue("@Phone", (object)phone ?? DBNull.Value);
+                insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureDepartment(
+            SqlConnection connection,
+            string deptId,
+            string deptName,
+            string parentDeptId,
+            string factoryId,
+            string description,
+            string managerEmployeeId)
+        {
+            const string selectSql = "SELECT COUNT(1) FROM dbo.Department WHERE DeptId = @DeptId";
+            using (SqlCommand selectCmd = new SqlCommand(selectSql, connection))
+            {
+                selectCmd.Parameters.AddWithValue("@DeptId", deptId);
+                int count = Convert.ToInt32(selectCmd.ExecuteScalar());
+                if (count > 0)
+                {
+                    return;
+                }
+            }
+
+            const string insertSql = @"
+INSERT INTO dbo.Department (DeptId, DeptName, ParentDeptId, FactoryId, Description, ManagerEmployeeId)
+VALUES (@DeptId, @DeptName, @ParentDeptId, @FactoryId, @Description, @ManagerEmployeeId);";
+
+            using (SqlCommand insertCmd = new SqlCommand(insertSql, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@DeptId", deptId);
+                insertCmd.Parameters.AddWithValue("@DeptName", deptName);
+                insertCmd.Parameters.AddWithValue("@ParentDeptId", (object)parentDeptId ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@FactoryId", factoryId);
+                insertCmd.Parameters.AddWithValue("@Description", (object)description ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@ManagerEmployeeId", (object)managerEmployeeId ?? DBNull.Value);
+                insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureEmployee(
+            SqlConnection connection,
+            string employeeId,
+            string employeeName,
+            string deptId,
+            string status)
+        {
+            const string selectSql = "SELECT COUNT(1) FROM dbo.Employee WHERE EmployeeId = @EmployeeId";
+            using (SqlCommand selectCmd = new SqlCommand(selectSql, connection))
+            {
+                selectCmd.Parameters.AddWithValue("@EmployeeId", employeeId);
+                int count = Convert.ToInt32(selectCmd.ExecuteScalar());
+                if (count > 0)
+                {
+                    return;
+                }
+            }
+
+            const string insertSql = @"
+INSERT INTO dbo.Employee (EmployeeId, EmployeeName, DeptId, Status)
+VALUES (@EmployeeId, @EmployeeName, @DeptId, @Status);";
+
+            using (SqlCommand insertCmd = new SqlCommand(insertSql, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@EmployeeId", employeeId);
+                insertCmd.Parameters.AddWithValue("@EmployeeName", employeeName);
+                insertCmd.Parameters.AddWithValue("@DeptId", deptId);
+                insertCmd.Parameters.AddWithValue("@Status", (object)status ?? DBNull.Value);
                 insertCmd.ExecuteNonQuery();
             }
         }
