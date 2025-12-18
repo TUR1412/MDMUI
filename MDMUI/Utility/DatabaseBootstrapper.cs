@@ -68,6 +68,11 @@ END";
             EnsureUserFactoryTableExists(connection);
             EnsurePermissionsTableExists(connection);
             EnsureUserPermissionsTableExists(connection);
+
+            // 业务功能表：确保主要功能页不会因为缺表直接崩溃（幂等、非破坏）
+            EnsureProductCategoryTableExists(connection);
+            EnsureProductTableExists(connection);
+            EnsureGetCategoryDescendantsFunctionExists(connection);
         }
 
         private static void EnsureRolesTableExists(SqlConnection connection)
@@ -197,6 +202,100 @@ END";
             }
         }
 
+        private static void EnsureProductCategoryTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.ProductCategory', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.ProductCategory (
+        CategoryId VARCHAR(36) NOT NULL PRIMARY KEY,
+        CategoryName NVARCHAR(50) NOT NULL,
+        ParentCategoryId VARCHAR(36) NULL,
+        Description NVARCHAR(200) NULL,
+        CreateTime DATETIME NOT NULL CONSTRAINT DF_ProductCategory_CreateTime DEFAULT(GETDATE())
+    );
+
+    CREATE INDEX IX_ProductCategory_Parent ON dbo.ProductCategory(ParentCategoryId);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureProductTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.Product', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Product (
+        ProductId VARCHAR(20) NOT NULL PRIMARY KEY,
+        ProductName NVARCHAR(100) NOT NULL,
+        CategoryId VARCHAR(36) NOT NULL,
+        Specification NVARCHAR(100) NULL,
+        Unit NVARCHAR(20) NULL,
+        Price DECIMAL(18,2) NULL,
+        Cost DECIMAL(18,2) NULL,
+        Description NVARCHAR(500) NULL,
+        Status NVARCHAR(20) NOT NULL CONSTRAINT DF_Product_Status DEFAULT(N'正常'),
+        CreateTime DATETIME NOT NULL CONSTRAINT DF_Product_CreateTime DEFAULT(GETDATE()),
+        CONSTRAINT FK_Product_Category FOREIGN KEY (CategoryId) REFERENCES dbo.ProductCategory(CategoryId)
+    );
+
+    CREATE INDEX IX_Product_CategoryId ON dbo.Product(CategoryId);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureGetCategoryDescendantsFunctionExists(SqlConnection connection)
+        {
+            // CREATE FUNCTION 必须是 batch 的第一个语句，因此使用动态 SQL。
+            const string sql = @"
+IF OBJECT_ID(N'dbo.GetCategoryDescendants', N'FN') IS NULL
+BEGIN
+    EXEC(N'
+CREATE FUNCTION [dbo].[GetCategoryDescendants]
+(
+    @RootCategoryId VARCHAR(36)
+)
+RETURNS @DescendantTable TABLE
+(
+    CategoryId VARCHAR(36) PRIMARY KEY
+)
+AS
+BEGIN
+    ;WITH CategoryHierarchy AS (
+        SELECT CategoryId
+        FROM dbo.ProductCategory
+        WHERE CategoryId = @RootCategoryId
+
+        UNION ALL
+
+        SELECT c.CategoryId
+        FROM dbo.ProductCategory c
+        INNER JOIN CategoryHierarchy ch ON c.ParentCategoryId = ch.CategoryId
+    )
+    INSERT INTO @DescendantTable (CategoryId)
+    SELECT CategoryId
+    FROM CategoryHierarchy
+    OPTION (MAXRECURSION 0);
+
+    RETURN;
+END
+');
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         private static void EnsureCoreSeedData(SqlConnection connection)
         {
             int normalRoleId = EnsureRole(connection, "普通用户");
@@ -243,6 +342,10 @@ END";
             // MainForm 菜单权限（至少保证“view”存在）
             EnsurePermission(connection, "process", "view", "查看工艺管理");
             EnsurePermission(connection, "product", "view", "查看产品管理");
+            EnsurePermission(connection, "product", "add", "添加产品");
+            EnsurePermission(connection, "product", "edit", "编辑产品");
+            EnsurePermission(connection, "product", "delete", "删除产品");
+            EnsurePermission(connection, "product", "export", "导出产品");
             EnsurePermission(connection, "production", "view", "查看生产管理");
             EnsurePermission(connection, "equipment", "view", "查看设备管理");
             EnsurePermission(connection, "inventory", "view", "查看库存管理");
@@ -271,6 +374,16 @@ END";
 
             // 默认让管理员拥有全部已定义权限（即便代码有“超级管理员直通”，也保证数据一致）
             EnsureUserHasAllPermissions(connection, adminUserId);
+
+            // 最小产品类别种子数据（幂等、不覆盖）
+            EnsureProductCategory(connection, "PC001", "电子产品", null, "各种消费类电子产品");
+            EnsureProductCategory(connection, "PC002", "家用电器", null, "冰箱、洗衣机、空调等");
+            EnsureProductCategory(connection, "PC001-01", "手机", "PC001", "各种智能手机和功能手机");
+            EnsureProductCategory(connection, "PC001-02", "笔记本电脑", "PC001", "便携式个人电脑");
+            EnsureProductCategory(connection, "PC001-03", "平板电脑", "PC001", "触摸屏移动设备");
+            EnsureProductCategory(connection, "PC002-01", "冰箱", "PC002", "用于冷藏和冷冻食物");
+            EnsureProductCategory(connection, "PC002-02", "洗衣机", "PC002", "用于清洗衣物");
+            EnsureProductCategory(connection, "PC002-03", "空调", "PC002", "用于调节室内温度");
         }
 
         private static int EnsureRole(SqlConnection connection, string roleName)
@@ -412,6 +525,38 @@ VALUES (@ModuleName, @ActionName, @Description);";
             {
                 insertCmd.Parameters.AddWithValue("@ModuleName", moduleName);
                 insertCmd.Parameters.AddWithValue("@ActionName", actionName);
+                insertCmd.Parameters.AddWithValue("@Description", (object)description ?? DBNull.Value);
+                insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureProductCategory(
+            SqlConnection connection,
+            string categoryId,
+            string categoryName,
+            string parentCategoryId,
+            string description)
+        {
+            const string selectSql = "SELECT COUNT(1) FROM dbo.ProductCategory WHERE CategoryId = @CategoryId";
+            using (SqlCommand selectCmd = new SqlCommand(selectSql, connection))
+            {
+                selectCmd.Parameters.AddWithValue("@CategoryId", categoryId);
+                int count = Convert.ToInt32(selectCmd.ExecuteScalar());
+                if (count > 0)
+                {
+                    return;
+                }
+            }
+
+            const string insertSql = @"
+INSERT INTO dbo.ProductCategory (CategoryId, CategoryName, ParentCategoryId, Description)
+VALUES (@CategoryId, @CategoryName, @ParentCategoryId, @Description);";
+
+            using (SqlCommand insertCmd = new SqlCommand(insertSql, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@CategoryId", categoryId);
+                insertCmd.Parameters.AddWithValue("@CategoryName", categoryName);
+                insertCmd.Parameters.AddWithValue("@ParentCategoryId", (object)parentCategoryId ?? DBNull.Value);
                 insertCmd.Parameters.AddWithValue("@Description", (object)description ?? DBNull.Value);
                 insertCmd.ExecuteNonQuery();
             }
