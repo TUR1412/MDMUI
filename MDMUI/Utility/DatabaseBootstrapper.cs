@@ -76,6 +76,7 @@ END";
 
             EnsureDepartmentTableExists(connection);
             EnsureEmployeeTableExists(connection);
+            EnsureAreaTableExists(connection);
         }
 
         private static void EnsureRolesTableExists(SqlConnection connection)
@@ -349,6 +350,28 @@ END";
             }
         }
 
+        private static void EnsureAreaTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.Area', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Area (
+        AreaId VARCHAR(20) NOT NULL PRIMARY KEY,
+        AreaName NVARCHAR(100) NOT NULL,
+        ParentAreaId VARCHAR(20) NULL,
+        PostalCode VARCHAR(20) NULL,
+        Remark NVARCHAR(500) NULL
+    );
+
+    CREATE INDEX IX_Area_ParentAreaId ON dbo.Area(ParentAreaId);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
         private static void EnsureCoreSeedData(SqlConnection connection)
         {
             int normalRoleId = EnsureRole(connection, "普通用户");
@@ -442,6 +465,13 @@ END";
             EnsureDepartment(connection, "D001", "测试部门1", null, "F001", "这是测试部门的描述信息", null);
             EnsureEmployee(connection, "EMP001", "张三", "D001", "在职");
             EnsureEmployee(connection, "EMP002", "李四", "D001", "在职");
+
+            // 最小生产地区域数据（幂等、不覆盖）
+            EnsureArea(connection, "CN", "中国", null, null, null);
+            EnsureArea(connection, "BJ", "北京", "CN", "100000", null);
+            EnsureArea(connection, "BJ-HD", "海淀区", "BJ", "100080", "北京海淀区");
+            EnsureArea(connection, "SH", "上海", "CN", "200000", null);
+            EnsureArea(connection, "SH-PD", "浦东新区", "SH", "200120", "上海浦东新区");
         }
 
         private static int EnsureRole(SqlConnection connection, string roleName)
@@ -598,6 +628,40 @@ VALUES (@EmployeeId, @EmployeeName, @DeptId, @Status);";
                 insertCmd.Parameters.AddWithValue("@EmployeeName", employeeName);
                 insertCmd.Parameters.AddWithValue("@DeptId", deptId);
                 insertCmd.Parameters.AddWithValue("@Status", (object)status ?? DBNull.Value);
+                insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureArea(
+            SqlConnection connection,
+            string areaId,
+            string areaName,
+            string parentAreaId,
+            string postalCode,
+            string remark)
+        {
+            const string selectSql = "SELECT COUNT(1) FROM dbo.Area WHERE AreaId = @AreaId";
+            using (SqlCommand selectCmd = new SqlCommand(selectSql, connection))
+            {
+                selectCmd.Parameters.AddWithValue("@AreaId", areaId);
+                int count = Convert.ToInt32(selectCmd.ExecuteScalar());
+                if (count > 0)
+                {
+                    return;
+                }
+            }
+
+            const string insertSql = @"
+INSERT INTO dbo.Area (AreaId, AreaName, ParentAreaId, PostalCode, Remark)
+VALUES (@AreaId, @AreaName, @ParentAreaId, @PostalCode, @Remark);";
+
+            using (SqlCommand insertCmd = new SqlCommand(insertSql, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@AreaId", areaId);
+                insertCmd.Parameters.AddWithValue("@AreaName", areaName);
+                insertCmd.Parameters.AddWithValue("@ParentAreaId", (object)parentAreaId ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@PostalCode", (object)postalCode ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@Remark", (object)remark ?? DBNull.Value);
                 insertCmd.ExecuteNonQuery();
             }
         }
