@@ -108,7 +108,9 @@ namespace MDMUI.BLL
             if (string.IsNullOrWhiteSpace(department.DeptId)) { throw new ArgumentException("部门ID不能为空", nameof(department.DeptId)); }
             if (string.IsNullOrWhiteSpace(department.DeptName)) { throw new ArgumentException("部门名称不能为空", nameof(department.DeptName)); }
              if (string.IsNullOrWhiteSpace(department.FactoryId)) { throw new ArgumentException("必须指定所属工厂", nameof(department.FactoryId)); }
-            // TODO: 添加验证防止循环引用 (ParentDeptId 不能是自身或其子部门)
+
+            // 防止循环引用：ParentDeptId 不能是自身或其子部门
+            ValidateNoCircularReference(department);
 
             try
             {
@@ -120,6 +122,90 @@ namespace MDMUI.BLL
             {
                 Console.WriteLine("BLL Error updating department: " + ex.Message);
                 throw;
+            }
+        }
+
+        private void ValidateNoCircularReference(Department department)
+        {
+            if (department == null) { throw new ArgumentNullException(nameof(department)); }
+
+            string deptId = department.DeptId?.Trim();
+            string newParentDeptId = string.IsNullOrWhiteSpace(department.ParentDeptId) ? null : department.ParentDeptId.Trim();
+
+            if (string.IsNullOrWhiteSpace(deptId))
+            {
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(newParentDeptId))
+            {
+                return; // 未设置上级部门，不存在循环问题
+            }
+
+            if (string.Equals(deptId, newParentDeptId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("上级部门不能设置为自身。");
+            }
+
+            // 上级部门必须存在
+            Department parent = deptDal.GetDepartmentById(newParentDeptId);
+            if (parent == null)
+            {
+                throw new InvalidOperationException("上级部门不存在，请重新选择。");
+            }
+
+            // 上级部门必须在同一工厂内（避免跨工厂挂靠导致的层级混乱）
+            if (!string.Equals(parent.FactoryId, department.FactoryId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("上级部门必须属于同一工厂。");
+            }
+
+            // 判断 newParentDeptId 是否在 deptId 的子孙节点集合里
+            List<Department> all = deptDal.GetAllDepartments();
+            Dictionary<string, List<string>> childrenByParentId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (Department d in all)
+            {
+                if (d == null) { continue; }
+
+                string parentId = string.IsNullOrWhiteSpace(d.ParentDeptId) ? null : d.ParentDeptId.Trim();
+                string childId = string.IsNullOrWhiteSpace(d.DeptId) ? null : d.DeptId.Trim();
+                if (string.IsNullOrWhiteSpace(childId) || string.IsNullOrWhiteSpace(parentId))
+                {
+                    continue;
+                }
+
+                if (!childrenByParentId.TryGetValue(parentId, out List<string> children))
+                {
+                    children = new List<string>();
+                    childrenByParentId[parentId] = children;
+                }
+                children.Add(childId);
+            }
+
+            HashSet<string> descendants = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Queue<string> queue = new Queue<string>();
+            queue.Enqueue(deptId);
+
+            while (queue.Count > 0)
+            {
+                string current = queue.Dequeue();
+                if (!childrenByParentId.TryGetValue(current, out List<string> children))
+                {
+                    continue;
+                }
+
+                foreach (string child in children)
+                {
+                    if (descendants.Add(child))
+                    {
+                        queue.Enqueue(child);
+                    }
+                }
+            }
+
+            if (descendants.Contains(newParentDeptId))
+            {
+                throw new InvalidOperationException("上级部门不能设置为当前部门的子部门（会导致循环引用）。");
             }
         }
 
