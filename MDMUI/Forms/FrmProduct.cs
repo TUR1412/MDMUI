@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -333,7 +334,71 @@ namespace MDMUI
         // 导出按钮点击
         private void BtnExport_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("导出功能将在后续实现", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                if (productTable == null)
+                {
+                    MessageBox.Show("当前没有可导出的产品数据。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                using (SaveFileDialog dialog = new SaveFileDialog())
+                {
+                    dialog.Title = "导出产品数据";
+                    dialog.Filter = "CSV 文件 (*.csv)|*.csv";
+                    dialog.FileName = $"products_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+                    if (dialog.ShowDialog() != DialogResult.OK)
+                    {
+                        return;
+                    }
+
+                    WriteDataTableToCsv(productTable, dialog.FileName);
+                    UpdateStatus($"已导出产品数据：{dialog.FileName}");
+                    MessageBox.Show("导出成功。", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("导出失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static void WriteDataTableToCsv(DataTable table, string filePath)
+        {
+            if (table == null) { throw new ArgumentNullException(nameof(table)); }
+            if (string.IsNullOrWhiteSpace(filePath)) { throw new ArgumentException("导出路径不能为空", nameof(filePath)); }
+
+            // UTF-8 BOM：提升在 Excel 中直接打开的兼容性
+            using (StreamWriter writer = new StreamWriter(filePath, false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: true)))
+            {
+                // Header
+                string header = string.Join(",", table.Columns.Cast<DataColumn>().Select(c => EscapeCsv(c.ColumnName)));
+                writer.WriteLine(header);
+
+                foreach (DataRow row in table.Rows)
+                {
+                    string line = string.Join(",", table.Columns.Cast<DataColumn>().Select(c => EscapeCsv(row[c])));
+                    writer.WriteLine(line);
+                }
+            }
+        }
+
+        private static string EscapeCsv(object value)
+        {
+            if (value == null || value == DBNull.Value)
+            {
+                return string.Empty;
+            }
+
+            string text = value.ToString();
+            bool mustQuote = text.Contains(",") || text.Contains("\"") || text.Contains("\r") || text.Contains("\n");
+            if (!mustQuote)
+            {
+                return text;
+            }
+
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
         }
         
         // 搜索按钮点击
