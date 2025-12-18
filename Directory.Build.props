@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      兼容 dotnet build / MSBuild 构建 .NET Framework WinForms：
+      避免 GenerateResource 任务在 x86 TaskHost 上失败 (MSB4216/MSB4028)。
+    -->
+    <GenerateResourceMSBuildArchitecture>x64</GenerateResourceMSBuildArchitecture>
+  </PropertyGroup>
+</Project>
+

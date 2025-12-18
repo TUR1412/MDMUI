@@ -12,11 +12,6 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
-    <!--
-      兼容 dotnet build (SDK 自带 MSBuild) 构建 .NET Framework WinForms：
-      避免 GenerateResource 任务在 x86 TaskHost 上失败 (MSB4216/MSB4028)。
-    -->
-    <GenerateResourceMSBuildArchitecture>x64</GenerateResourceMSBuildArchitecture>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
