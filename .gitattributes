@@ -1,0 +1,33 @@
+# 统一文本文件换行与二进制识别，减少跨平台/工具链差异导致的噪音 diff
+* text=auto
+
+# C# / MSBuild
+*.cs       text eol=lf
+*.csproj   text eol=lf
+*.sln      text eol=crlf
+*.config   text eol=lf
+
+# Docs / CI
+*.md       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+
+# Scripts
+*.ps1      text eol=lf
+*.cmd      text eol=crlf
+*.bat      text eol=crlf
+
+# Common binaries
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.gif      binary
+*.ico      binary
+*.zip      binary
+*.exe      binary
+*.dll      binary
+*.pdb      binary
+*.db       binary
+*.db-shm   binary
+*.db-wal   binary
+
