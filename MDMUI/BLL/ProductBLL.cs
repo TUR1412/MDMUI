@@ -71,5 +71,21 @@ namespace MDMUI.BLL
                 throw new Exception($"搜索产品失败: {ex.Message}", ex);
             }
         }
+
+        /// <summary>
+        /// 删除产品
+        /// </summary>
+        public bool DeleteProduct(string productId)
+        {
+            try
+            {
+                return productDAL.DeleteProduct(productId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"BusinessLayer - 删除产品失败: {ex.Message}");
+                throw;
+            }
+        }
     }
 } 

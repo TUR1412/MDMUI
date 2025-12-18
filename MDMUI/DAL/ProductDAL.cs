@@ -162,5 +162,42 @@ namespace MDMUI.DAL
 
             return dt;
         }
+
+        /// <summary>
+        /// 删除产品
+        /// </summary>
+        /// <param name="productId">产品ID</param>
+        /// <returns>成功删除返回 true；未找到返回 false</returns>
+        public bool DeleteProduct(string productId)
+        {
+            if (string.IsNullOrWhiteSpace(productId))
+            {
+                throw new ArgumentException("产品ID不能为空", nameof(productId));
+            }
+
+            try
+            {
+                const string query = "DELETE FROM Product WHERE ProductId = @ProductId";
+
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@ProductId", productId);
+                    conn.Open();
+                    int rows = cmd.ExecuteNonQuery();
+                    return rows > 0;
+                }
+            }
+            catch (SqlException ex) when (ex.Number == 547)
+            {
+                // 外键约束冲突
+                throw new Exception("删除失败：该产品可能已被其他业务数据引用，请先解除关联。", ex);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"删除产品失败: {ex.Message}");
+                throw;
+            }
+        }
     }
 } 

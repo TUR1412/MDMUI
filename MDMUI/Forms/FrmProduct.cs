@@ -277,12 +277,45 @@ namespace MDMUI
             {
                 string productId = this.dgvProduct.SelectedRows[0].Cells["ProductId"].Value.ToString();
                 string productName = this.dgvProduct.SelectedRows[0].Cells["ProductName"].Value.ToString();
+
+                bool isAdmin = CurrentUser != null && CurrentUser.RoleName == "超级管理员";
+                if (!isAdmin)
+                {
+                    if (CurrentUser == null)
+                    {
+                        MessageBox.Show("未登录用户无权删除产品。", "权限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    PermissionChecker permissionChecker = new PermissionChecker();
+                    if (!permissionChecker.HasPermission(CurrentUser.Id, "product", "delete"))
+                    {
+                        MessageBox.Show("您没有删除产品的权限。", "权限不足", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
                 
                 if (MessageBox.Show($"确定要删除产品: {productName}吗？", "确认删除", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
-                    MessageBox.Show($"删除产品 ID: {productId}\n此功能将在后续实现", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    // TODO: 实现删除逻辑
-                    LoadProductData(); // 重新加载数据
+                    try
+                    {
+                        ProductBLL productBLL = new ProductBLL();
+                        bool success = productBLL.DeleteProduct(productId);
+                        if (success)
+                        {
+                            UpdateStatus($"已删除产品：{productName} ({productId})");
+                        }
+                        else
+                        {
+                            MessageBox.Show("删除失败：未找到该产品记录。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+
+                        LoadProductData(); // 重新加载数据
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("删除产品失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
             }
             else
