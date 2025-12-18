@@ -24,12 +24,24 @@ MDMUI 是一个基于 **.NET Framework 4.8 / WinForms** 的桌面管理端示例
 dotnet build .\MDMUI\MDMUI.sln -c Release
 ```
 
+或使用项目内置脚本：
+
+```powershell
+pwsh -NoLogo -NoProfile -File .\scripts\build.ps1 -Configuration Release
+```
+
 生成产物默认在：
 - `MDMUI/bin/Release/MDMUI.exe`
 
 ## 3) 数据库与初始化
 
 默认连接字符串位于：`MDMUI/App.config` 的 `DefaultConnection`。
+
+也支持通过环境变量覆盖（便于 CI/部署，不需要改配置文件）：
+
+```powershell
+$env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catalog=UserDB;Integrated Security=True"
+```
 
 应用启动时会自动：
 - 如果 `UserDB` 不存在：尝试创建数据库
