@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{09E9432D-9182-4AE9-9FA5-53215FAB7FFF}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>MDMUI</RootNamespace>
+    <AssemblyName>MDMUI</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <!--
+      兼容 dotnet build (SDK 自带 MSBuild) 构建 .NET Framework WinForms：
+      避免 GenerateResource 任务在 x86 TaskHost 上失败 (MSB4216/MSB4028)。
+    -->
+    <GenerateResourceMSBuildArchitecture>x64</GenerateResourceMSBuildArchitecture>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="BLL\MenuBLL.cs" />
+    <Compile Include="BLL\ProductBLL.cs" />
+    <Compile Include="BLL\UserBLL.cs" />
+    <Compile Include="BLL\EqpGroupService.cs" />
+    <Compile Include="BLL\SystemLogBLL.cs" />
+    <Compile Include="BLL\UserService.cs" />
+    <Compile Include="BLL\PermissionService.cs" />
+    <Compile Include="BLL\AreaService.cs" />
+    <Compile Include="BLL\DepartmentService.cs" />
+    <Compile Include="BLL\FactoryService.cs" />
+    <Compile Include="BLL\SubDeviceService.cs" />
+    <Compile Include="BLL\PortService.cs" />
+    <Compile Include="BLL\ProcessPackageBLL.cs" />
+    <Compile Include="BLL\ProcessBLL.cs" />
+    <Compile Include="BLL\ProcessRouteBLL.cs" />
+    <Compile Include="BLL\RoleBLL.cs" />
+    <Compile Include="BLL\UserModuleBLL.cs" />
+    <Compile Include="Controls\DraggableListView.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="DAL\MenuDAL.cs" />
+    <Compile Include="DAL\ProductDAL.cs" />
+    <Compile Include="DAL\UserDAL.cs" />
+    <Compile Include="DAL\RolesDAL.cs" />
+    <Compile Include="DAL\FactoryDAL.cs" />
+    <Compile Include="DAL\FactoryRepository.cs" />
+    <Compile Include="DAL\DepartmentDAL.cs" />
+    <Compile Include="DAL\EmployeeDAL.cs" />
+    <Compile Include="DAL\EquipmentDAL.cs" />
+    <Compile Include="DAL\EquipmentMaintenanceDAL.cs" />
+    <Compile Include="DAL\EqpGroupDAL.cs" />
+    <Compile Include="DAL\SystemLogDAL.cs" />
+    <Compile Include="DAL\PermissionDAL.cs" />
+    <Compile Include="DAL\AreaDAL.cs" />
+    <Compile Include="DAL\SubDeviceDAL.cs" />
+    <Compile Include="DAL\PortDAL.cs" />
+    <Compile Include="DAL\ProcessPackageDAL.cs" />
+    <Compile Include="DAL\ProcessDAL.cs" />
+    <Compile Include="DAL\ProcessRouteDAL.cs" />
+    <Compile Include="Forms\Form1.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\Form1.Designer.cs">
+      <DependentUpon>Form1.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmArea.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmArea.Designer.cs">
+      <DependentUpon>FrmArea.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmAreaEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmAreaEdit.Designer.cs">
+      <DependentUpon>FrmAreaEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmDatabaseBrowser.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmDatabaseBrowser.Designer.cs">
+      <DependentUpon>FrmDatabaseBrowser.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmFactory.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmFactory.Designer.cs">
+      <DependentUpon>FrmFactory.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmFactoryEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmFactoryEdit.Designer.cs">
+      <DependentUpon>FrmFactoryEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmDepartment.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmDepartment.Designer.cs">
+      <DependentUpon>FrmDepartment.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmDepartmentEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmDepartmentEdit.Designer.cs">
+      <DependentUpon>FrmDepartmentEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmPermission.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmPermission.Designer.cs">
+      <DependentUpon>FrmPermission.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProduct.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProduct.Designer.cs">
+      <DependentUpon>FrmProduct.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProductCategory.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProductCategory.Designer.cs">
+      <DependentUpon>FrmProductCategory.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProductCategoryEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProductCategoryEdit.Designer.cs">
+      <DependentUpon>FrmProductCategoryEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProductEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProductEdit.Designer.cs">
+      <DependentUpon>FrmProductEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmUser.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmUser.Designer.cs">
+      <DependentUpon>FrmUser.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmUserEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmUserEdit.Designer.cs">
+      <DependentUpon>FrmUserEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProductionPlan.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProductionPlan.Designer.cs">
+      <DependentUpon>FrmProductionPlan.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProductionRecord.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProductionRecord.Designer.cs">
+      <DependentUpon>FrmProductionRecord.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmDeviceInfo.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmDeviceInfo.Designer.cs">
+      <DependentUpon>FrmDeviceInfo.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmInventoryInfo.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmInventoryInfo.Designer.cs">
+      <DependentUpon>FrmInventoryInfo.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmInventoryCount.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmInventoryCount.Designer.cs">
+      <DependentUpon>FrmInventoryCount.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmSystemParameters.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmSystemParameters.Designer.cs">
+      <DependentUpon>FrmSystemParameters.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmDataBackup.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmDataBackup.Designer.cs">
+      <DependentUpon>FrmDataBackup.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmOperationLog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmOperationLog.Designer.cs">
+      <DependentUpon>FrmOperationLog.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroupEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroupEdit.Designer.cs">
+      <DependentUpon>FrmEqpGroupEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroup.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroup.Designer.cs">
+      <DependentUpon>FrmEqpGroup.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroupHis.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmEqpGroupHis.Designer.cs">
+      <DependentUpon>FrmEqpGroupHis.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmSubDeviceEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmSubDeviceEdit.Designer.cs">
+      <DependentUpon>FrmSubDeviceEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmPortEdit.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmPortEdit.Designer.cs">
+      <DependentUpon>FrmPortEdit.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProcessManagement.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProcessManagement.Designer.cs">
+      <DependentUpon>FrmProcessManagement.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmProcessDefinition.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmProcessDefinition.Designer.cs">
+      <DependentUpon>FrmProcessDefinition.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\FrmUpdateOpSeq.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\FrmUpdateOpSeq.Designer.cs">
+      <DependentUpon>FrmUpdateOpSeq.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Forms\MainForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\MainForm.Designer.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Model\Area.cs" />
+    <Compile Include="Model\ComboboxItem.cs" />
+    <Compile Include="Model\Department.cs" />
+    <Compile Include="Model\Employee.cs" />
+    <Compile Include="Model\Equipment.cs" />
+    <Compile Include="Model\EquipmentMaintenance.cs" />
+    <Compile Include="Model\Factory.cs" />
+    <Compile Include="Model\Menu.cs" />
+    <Compile Include="Model\Permission.cs" />
+    <Compile Include="Model\Product.cs" />
+    <Compile Include="Model\ProductCategory.cs" />
+    <Compile Include="Model\Roles.cs" />
+    <Compile Include="Model\User.cs" />
+    <Compile Include="Model\EqpGroup.cs" />
+    <Compile Include="Model\EqpGroupHis.cs" />
+    <Compile Include="Model\SubDevice.cs" />
+    <Compile Include="Model\Port.cs" />
+    <Compile Include="Model\ProcessPackage.cs" />
+    <Compile Include="Model\Process.cs" />
+    <Compile Include="Model\ProcessRoute.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Utility\DbConnectionHelper.cs" />
+    <Compile Include="Utility\DatabaseBootstrapper.cs" />
+    <Compile Include="Utility\PasswordEncryptor.cs" />
+    <Compile Include="Utility\PermissionChecker.cs" />
+    <Compile Include="Utility\SqlDataReaderExtensions.cs" />
+    <Compile Include="Utility\CommonHelper.cs" />
+    <Compile Include="Utility\ProcessSequenceOptimizer.cs" />
+    <Compile Include="Utility\StringHelper.cs" />
+    <EmbeddedResource Include="Forms\Form1.resx">
+      <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmDepartment.resx">
+      <DependentUpon>FrmDepartment.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmDepartmentEdit.resx">
+      <DependentUpon>FrmDepartmentEdit.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmDeviceInfo.resx">
+      <DependentUpon>FrmDeviceInfo.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmInventoryInfo.resx">
+      <DependentUpon>FrmInventoryInfo.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmPermission.resx">
+      <DependentUpon>FrmPermission.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmUser.resx">
+      <DependentUpon>FrmUser.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmFactory.resx">
+      <DependentUpon>FrmFactory.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmProduct.resx">
+      <DependentUpon>FrmProduct.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <EmbeddedResource Include="Forms\FrmEqpGroupEdit.resx">
+      <DependentUpon>FrmEqpGroupEdit.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\FrmEqpGroup.resx">
+      <DependentUpon>FrmEqpGroup.cs</DependentUpon>
+    </EmbeddedResource>
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

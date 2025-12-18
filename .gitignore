@@ -1,0 +1,24 @@
+# Visual Studio / MSBuild
+.vs/
+**/.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+**/bin/
+**/obj/
+
+# Logs / diagnostics
+*.log
+*.tmp
+*.bak
+
+# OS / tooling noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# NuGet (若后续引入)
+packages/
