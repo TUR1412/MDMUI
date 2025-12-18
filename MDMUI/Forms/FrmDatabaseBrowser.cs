@@ -143,23 +143,83 @@ namespace MDMUI
                     MessageBox.Show("请输入SQL查询", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
+
+                string sql = txtSqlQuery.Text.Trim();
+                string leadingKeyword = GetLeadingSqlKeyword(sql);
                 
                 if (connection.State != ConnectionState.Open)
                     connection.Open();
-                
-                SqlDataAdapter adapter = new SqlDataAdapter(txtSqlQuery.Text, connection);
+
+                // 默认当作查询（SELECT/CTE），其他语句需要二次确认，避免误操作导致数据被修改/删除。
+                bool isQuery = leadingKeyword == "select" || leadingKeyword == "with";
+                if (!isQuery)
+                {
+                    DialogResult confirm = MessageBox.Show(
+                        $"检测到非查询语句（{leadingKeyword}）。该操作可能修改或删除数据。\n\n是否继续执行？",
+                        "危险操作确认",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+
+                    if (confirm != DialogResult.Yes)
+                    {
+                        return;
+                    }
+
+                    using (SqlCommand cmd = new SqlCommand(sql, connection))
+                    {
+                        int affected = cmd.ExecuteNonQuery();
+                        MessageBox.Show($"执行完成，影响行数：{affected}", "完成", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    return;
+                }
+
+                SqlDataAdapter adapter = new SqlDataAdapter(sql, connection);
                 DataTable resultTable = new DataTable();
                 adapter.Fill(resultTable);
-                
+
                 // 显示查询结果
                 dataGridView.DataSource = resultTable;
-                
+
                 tabControl.SelectedIndex = 0; // 切换到数据标签页
             }
             catch (Exception ex)
             {
                 MessageBox.Show("执行SQL查询失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static string GetLeadingSqlKeyword(string sql)
+        {
+            if (string.IsNullOrWhiteSpace(sql))
+            {
+                return string.Empty;
+            }
+
+            string working = sql.TrimStart();
+
+            // 跳过 -- 行注释（尽量少做“聪明解析”，只覆盖常见情况）
+            while (working.StartsWith("--"))
+            {
+                int newline = working.IndexOfAny(new[] { '\r', '\n' });
+                if (newline < 0)
+                {
+                    return string.Empty;
+                }
+                working = working.Substring(newline).TrimStart();
+            }
+
+            int end = 0;
+            while (end < working.Length && char.IsLetter(working[end]))
+            {
+                end++;
+            }
+
+            if (end <= 0)
+            {
+                return string.Empty;
+            }
+
+            return working.Substring(0, end).ToLowerInvariant();
         }
         
         protected override void OnFormClosing(FormClosingEventArgs e)
