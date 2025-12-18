@@ -320,7 +320,7 @@ namespace MDMUI
                 // 如果选择了类别，获取类别ID
                 if (!string.IsNullOrEmpty(categoryName))
                 {
-                    string connectionString = System.Configuration.ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+                    string connectionString = DbConnectionHelper.GetConnectionString();
                     using (SqlConnection conn = new SqlConnection(connectionString))
                     {
                         conn.Open();
@@ -328,7 +328,8 @@ namespace MDMUI
                         using (SqlCommand cmd = new SqlCommand(sql, conn))
                         {
                             cmd.Parameters.AddWithValue("@CategoryName", categoryName);
-                            categoryId = (string)cmd.ExecuteScalar();
+                            object result = cmd.ExecuteScalar();
+                            categoryId = result == DBNull.Value ? null : result?.ToString();
                         }
                     }
                 }
