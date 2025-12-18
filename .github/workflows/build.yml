@@ -20,3 +20,8 @@ jobs:
         run: |
           msbuild "MDMUI/MDMUI.sln" /t:Build /p:Configuration=Release /p:Platform="Any CPU"
 
+      - name: Build (dotnet)
+        shell: pwsh
+        run: |
+          .\scripts\build.ps1 -Configuration Release
+
