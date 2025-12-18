@@ -293,11 +293,54 @@ namespace MDMUI.BLL
              try
              {
                 var departments = deptDal.GetDepartmentsByFactoryId(factoryId);
+
+                HashSet<string> excludedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (!string.IsNullOrWhiteSpace(excludeDeptId))
+                {
+                    excludedIds.Add(excludeDeptId);
+
+                    // 计算所有子孙节点，避免选择导致循环引用
+                    Dictionary<string, List<string>> childrenByParentId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var dept in departments)
+                    {
+                        if (dept == null) { continue; }
+                        if (string.IsNullOrWhiteSpace(dept.DeptId) || string.IsNullOrWhiteSpace(dept.ParentDeptId)) { continue; }
+
+                        if (!childrenByParentId.TryGetValue(dept.ParentDeptId, out List<string> children))
+                        {
+                            children = new List<string>();
+                            childrenByParentId[dept.ParentDeptId] = children;
+                        }
+                        children.Add(dept.DeptId);
+                    }
+
+                    Queue<string> queue = new Queue<string>();
+                    queue.Enqueue(excludeDeptId);
+                    while (queue.Count > 0)
+                    {
+                        string current = queue.Dequeue();
+                        if (!childrenByParentId.TryGetValue(current, out List<string> children))
+                        {
+                            continue;
+                        }
+
+                        foreach (string child in children)
+                        {
+                            if (excludedIds.Add(child))
+                            {
+                                queue.Enqueue(child);
+                            }
+                        }
+                    }
+                }
+
                  foreach (var dept in departments)
                  {
-                      // 排除自身（用于编辑时的上级下拉框）
-                     if (dept.DeptId == excludeDeptId) continue;
-                     // TODO: 排除子孙节点防止循环引用
+                     if (dept == null || string.IsNullOrWhiteSpace(dept.DeptId)) { continue; }
+
+                      // 排除自身与子孙节点（用于编辑时的上级下拉框）
+                     if (excludedIds.Contains(dept.DeptId)) { continue; }
+
                      items.Add(new ComboboxItem(dept.DeptName, dept.DeptId));
                  }
              }
