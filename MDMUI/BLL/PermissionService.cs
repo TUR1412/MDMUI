@@ -115,7 +115,7 @@ namespace MDMUI.BLL
                             }
                             else 
                             {
-                                 description += " 但未能获取具体权限信息。授予权限数量: {permissionIds.Count}"; // Fallback if filtering fails
+                                 description += $" 但未能获取具体权限信息。授予权限数量: {permissionIds.Count}"; // Fallback if filtering fails
                             }
                         }
                         catch (Exception logEx)
