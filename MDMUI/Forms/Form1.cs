@@ -473,7 +473,16 @@ namespace MDMUI
             lblVersion.AutoSize = false;
             lblVersion.Font = new Font("微软雅黑", 9F, FontStyle.Regular);
             lblVersion.ForeColor = Color.Gray;
-            lblVersion.Text = "版本 V9.9.9 © 2025 轩天帝";
+            string version = "0.0.0";
+            try
+            {
+                version = Application.ProductVersion;
+            }
+            catch
+            {
+                // 忽略版本读取失败，使用默认值
+            }
+            lblVersion.Text = $"版本 v{version} © {DateTime.Now:yyyy} MDMUI";
             lblVersion.BackColor = Color.Transparent;
             lblVersion.TextAlign = ContentAlignment.MiddleRight;
             lblVersion.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
