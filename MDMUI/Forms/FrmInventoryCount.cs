@@ -68,8 +68,8 @@ namespace MDMUI
                 {
                     // 根据关键字筛选
                     DataView dv = inventoryData.DefaultView;
-                    dv.RowFilter = string.Format("ProductName LIKE '%{0}%' OR InventoryId LIKE '%{0}%'", 
-                        searchKeyword.Replace("'", "''"));
+                    string escaped = EscapeRowFilterLikeValue(searchKeyword);
+                    dv.RowFilter = string.Format("ProductName LIKE '%{0}%' OR InventoryId LIKE '%{0}%'", escaped);
                     dgvInventory.DataSource = dv.ToTable();
                 }
                 else
@@ -90,6 +90,23 @@ namespace MDMUI
             {
                 MessageBox.Show("加载库存盘点数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private static string EscapeRowFilterLikeValue(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            // DataView.RowFilter / DataTable.Select 的表达式语法中，LIKE 模式里 [] 有特殊含义；
+            // 同时要避免单引号打断字符串。
+            return value
+                .Replace("[", "[[]")
+                .Replace("]", "[]]")
+                .Replace("%", "[%]")
+                .Replace("*", "[*]")
+                .Replace("'", "''");
         }
         
         private DataTable CreateSampleData()
