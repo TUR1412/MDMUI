@@ -13,6 +13,7 @@ using System.Data.SqlClient;
 using MDMUI.BLL;
 using MDMUI.Model;
 using MDMUI.Utility;
+using MDMUI.Controls;
 using System.Runtime.InteropServices; // 用于实现窗体圆角
 
 namespace MDMUI
@@ -21,6 +22,13 @@ namespace MDMUI
     {
         private UserBLL userBLL;
         private User currentUser;
+
+        // “玻璃拟态”登录卡片与加载遮罩
+        private GlassPanel glassLoginPanel;
+        private GlassPanel loginLoadingOverlay;
+        private Label loginLoadingLabel;
+        private ProgressBar loginLoadingBar;
+        private bool loginInProgress;
         
         // 自定义圆角边框
         [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
@@ -67,7 +75,13 @@ namespace MDMUI
         {
             // 应用现代样式
             ApplyModernStyle();
-            
+
+            // 玻璃背景（尽力而为：Windows 11 优先 Mica；不影响不支持的系统）
+            try { WindowBackdrop.TryApply(this, WindowBackdrop.BackdropKind.Mica, useDarkMode: false); } catch { }
+
+            // 微交互（hover/click 平滑过渡）
+            ModernTheme.EnableMicroInteractions(this);
+
             // 设置默认文本和样式
             this.lblLoginHeader.Text = "用户登录";
             this.lblLoginHeader.ForeColor = textDarkColor;
@@ -121,6 +135,9 @@ namespace MDMUI
 
             // 从数据库加载工厂列表
             LoadFactoriesForNewUI();
+
+            // 预创建加载遮罩（避免首次点击时闪烁）
+            EnsureLoginLoadingOverlay();
         }
 
         private bool EnsureDatabaseReadyForLogin()
@@ -258,13 +275,10 @@ namespace MDMUI
             };
             
             // 设置登录面板样式
-            this.pnlLogin.BackColor = Color.White;
-            
-            // 为登录面板添加卡片式圆角
-            this.pnlLogin.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.pnlLogin.Width, this.pnlLogin.Height, 15, 15));
-            
+            EnsureGlassLoginPanel();
+
             // 为登录面板添加柔和的阴影效果
-            this.Paint += (s, e) => 
+            this.Paint += (s, e) =>
             {
                 if (!DesignMode)
                 {
@@ -276,10 +290,11 @@ namespace MDMUI
                         
                         using (SolidBrush shadowBrush = new SolidBrush(Color.FromArgb(alpha, 0, 0, 0)))
                         {
+                            Control card = (Control)(glassLoginPanel ?? this.pnlLogin);
                             // 使用GraphicsExtensions类中的方法
-                            GraphicsExtensions.FillRoundedRectangle(e.Graphics, shadowBrush, 
-                                new Rectangle(this.pnlLogin.Left + i/2, this.pnlLogin.Top + i/2, 
-                                this.pnlLogin.Width + i, this.pnlLogin.Height + i), 15);
+                            GraphicsExtensions.FillRoundedRectangle(e.Graphics, shadowBrush,
+                                new Rectangle(card.Left + i / 2, card.Top + i / 2,
+                                card.Width + i, card.Height + i), 15);
                         }
                     }
                 }
@@ -299,8 +314,128 @@ namespace MDMUI
             this.btnLogin.BackColor = primaryColor;
             this.btnLogin.ForeColor = Color.White;
             this.btnLogin.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.btnLogin.Width, this.btnLogin.Height, 10, 10));
-            this.btnLogin.MouseEnter += (s, e) => this.btnLogin.BackColor = secondaryColor;
-            this.btnLogin.MouseLeave += (s, e) => this.btnLogin.BackColor = primaryColor;
+        }
+
+        private void EnsureGlassLoginPanel()
+        {
+            if (glassLoginPanel != null) return;
+            if (this.pnlLogin == null) return;
+            if (this.pnlLogin.Parent == null) return;
+
+            glassLoginPanel = new GlassPanel
+            {
+                Name = "glassLoginPanel",
+                Bounds = this.pnlLogin.Bounds,
+                Anchor = this.pnlLogin.Anchor,
+                CornerRadius = 18,
+                GlassColor = Color.FromArgb(210, 255, 255, 255),
+                BorderColor = Color.FromArgb(90, 255, 255, 255),
+                BorderThickness = 1f
+            };
+
+            Control parent = this.pnlLogin.Parent;
+            parent.Controls.Add(glassLoginPanel);
+            glassLoginPanel.BringToFront();
+
+            // 将登录控件从旧面板迁移到玻璃面板（不改设计器文件）
+            while (this.pnlLogin.Controls.Count > 0)
+            {
+                Control child = this.pnlLogin.Controls[0];
+                this.pnlLogin.Controls.RemoveAt(0);
+                glassLoginPanel.Controls.Add(child);
+            }
+
+            this.pnlLogin.Visible = false;
+        }
+
+        private void EnsureLoginLoadingOverlay()
+        {
+            EnsureGlassLoginPanel();
+            Control container = (Control)(glassLoginPanel ?? this.pnlLogin);
+            if (container == null) return;
+
+            if (loginLoadingOverlay != null) return;
+
+            loginLoadingOverlay = new GlassPanel
+            {
+                Name = "loginLoadingOverlay",
+                Dock = DockStyle.Fill,
+                CornerRadius = 18,
+                GlassColor = Color.FromArgb(200, 245, 245, 250),
+                BorderColor = Color.FromArgb(80, 255, 255, 255),
+                BorderThickness = 1f,
+                Visible = false
+            };
+
+            loginLoadingLabel = new Label
+            {
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Dock = DockStyle.Top,
+                Height = 46,
+                Font = new Font("微软雅黑", 10F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(60, 60, 70),
+                Text = "正在处理…"
+            };
+
+            loginLoadingBar = new ProgressBar
+            {
+                Dock = DockStyle.Top,
+                Height = 10,
+                Style = ProgressBarStyle.Marquee,
+                MarqueeAnimationSpeed = 30
+            };
+
+            Panel content = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(20, 24, 20, 24),
+                BackColor = Color.Transparent
+            };
+
+            // 简单的垂直居中布局
+            Panel center = new Panel
+            {
+                Width = Math.Max(260, container.Width - 80),
+                Height = 120,
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.None
+            };
+            center.Controls.Add(loginLoadingBar);
+            center.Controls.Add(loginLoadingLabel);
+            loginLoadingBar.Top = 56;
+            loginLoadingLabel.Top = 8;
+
+            content.Controls.Add(center);
+            content.Resize += (s, e) =>
+            {
+                center.Left = Math.Max(0, (content.ClientSize.Width - center.Width) / 2);
+                center.Top = Math.Max(0, (content.ClientSize.Height - center.Height) / 2);
+            };
+
+            loginLoadingOverlay.Controls.Add(content);
+            container.Controls.Add(loginLoadingOverlay);
+            loginLoadingOverlay.BringToFront();
+        }
+
+        private void SetLoginLoading(bool loading, string message)
+        {
+            EnsureLoginLoadingOverlay();
+            if (loginLoadingOverlay == null) return;
+
+            loginLoadingLabel.Text = string.IsNullOrWhiteSpace(message) ? "正在处理…" : message;
+            loginLoadingOverlay.Visible = loading;
+            if (loading) loginLoadingOverlay.BringToFront();
+
+            // 只禁用登录卡片里的交互，避免影响窗体拖拽/关闭
+            if (glassLoginPanel != null)
+            {
+                foreach (Control child in glassLoginPanel.Controls)
+                {
+                    if (child == loginLoadingOverlay) continue;
+                    child.Enabled = !loading;
+                }
+            }
         }
         
         private Image CreateIconImage(string text, int fontSize)
@@ -409,8 +544,10 @@ namespace MDMUI
         }
         
         // 重命名按钮点击事件，避免使用旧的命名
-        private void LoginButton_Click(object sender, EventArgs e)
+        private async void LoginButton_Click(object sender, EventArgs e)
         {
+            if (loginInProgress) return;
+
             // 获取用户名和密码
             string username = this.txtNewUsername.Text.Trim();
             string password = this.txtNewPassword.Text.Trim();
@@ -427,13 +564,17 @@ namespace MDMUI
                 MessageBox.Show("请选择工厂", "登录错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            
+
             try
             {
+                loginInProgress = true;
+                SetLoginLoading(true, "正在验证账号…");
+                this.btnLogin.Enabled = false;
+
                 string factoryId = GetFactoryIdByName(factoryName);
                 // 修改为使用Login方法而不是ValidateUser
-                currentUser = userBLL.Login(username, password);
-                
+                currentUser = await Task.Run(() => userBLL.Login(username, password));
+
                 if (currentUser != null)
                 {
                     // 设置用户的工厂ID
@@ -442,7 +583,7 @@ namespace MDMUI
                     // 登录成功的动画效果
                     this.btnLogin.Text = "登录成功";
                     this.btnLogin.BackColor = Color.FromArgb(76, 175, 80);
-                    
+
                     // 延迟显示主窗体，修改为只传递currentUser
                     System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
                     timer.Interval = 1000;
@@ -463,6 +604,17 @@ namespace MDMUI
             catch (Exception ex)
             {
                 MessageBox.Show("登录过程中发生错误: " + ex.Message, "系统错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetLoginLoading(false, null);
+                if (!this.IsDisposed && this.btnLogin != null && this.Visible)
+                {
+                    // 成功后会 Hide 本窗体，此时不必再恢复按钮
+                    if (this.Visible) this.btnLogin.Enabled = true;
+                }
+
+                loginInProgress = false;
             }
         }
         

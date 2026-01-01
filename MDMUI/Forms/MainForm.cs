@@ -108,7 +108,11 @@ namespace MDMUI
             try
             {
                 LogHelper.Log("MainForm正在加载...");
-                
+
+                // 玻璃背景 + 微交互（尽力而为，不影响不支持的系统）
+                try { WindowBackdrop.TryApply(this, WindowBackdrop.BackdropKind.Mica, useDarkMode: false); } catch { }
+                ModernTheme.EnableMicroInteractions(this);
+
                 // 如果当前用户为 null，降级为访客态（不授予任何权限）
                 if (CurrentUser == null)
                 {

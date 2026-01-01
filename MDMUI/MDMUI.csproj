@@ -67,6 +67,7 @@
     <Compile Include="Controls\DraggableListView.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Controls\GlassPanel.cs" />
     <Compile Include="DAL\MenuDAL.cs" />
     <Compile Include="DAL\ProductDAL.cs" />
     <Compile Include="DAL\UserDAL.cs" />
@@ -306,8 +307,10 @@
     <Compile Include="Utility\PermissionChecker.cs" />
     <Compile Include="Utility\SqlDataReaderExtensions.cs" />
     <Compile Include="Utility\CommonHelper.cs" />
+    <Compile Include="Utility\ModernTheme.cs" />
     <Compile Include="Utility\ProcessSequenceOptimizer.cs" />
     <Compile Include="Utility\StringHelper.cs" />
+    <Compile Include="Utility\WindowBackdrop.cs" />
     <EmbeddedResource Include="Forms\Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>
