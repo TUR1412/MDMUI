@@ -36,6 +36,7 @@
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -279,6 +280,9 @@
     <Compile Include="Forms\MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\CommandPaletteForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Model\Area.cs" />
     <Compile Include="Model\ComboboxItem.cs" />
     <Compile Include="Model\Department.cs" />
@@ -303,6 +307,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utility\DbConnectionHelper.cs" />
     <Compile Include="Utility\DatabaseBootstrapper.cs" />
+    <Compile Include="Utility\AppPreferencesStore.cs" />
     <Compile Include="Utility\PasswordEncryptor.cs" />
     <Compile Include="Utility\PermissionChecker.cs" />
     <Compile Include="Utility\SqlDataReaderExtensions.cs" />

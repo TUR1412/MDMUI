@@ -30,6 +30,9 @@ namespace MDMUI
         private MenuBLL menuBLL;
         private UserDAL userDAL;
         private PermissionChecker permissionChecker;
+
+        // Command Palette（Ctrl+K）
+        private bool commandPaletteOpening;
         
         // 日志类
         public static class LogHelper 
@@ -53,6 +56,16 @@ namespace MDMUI
             menuBLL = new MenuBLL();
             userDAL = new UserDAL();
             permissionChecker = new PermissionChecker();
+
+            // 性能优化：一次性预加载用户权限，避免菜单创建/权限判断期间重复开连接
+            try
+            {
+                if (CurrentUser != null && CurrentUser.Id > 0 && CurrentUser.RoleName != "超级管理员")
+                {
+                    permissionChecker.PrimeUserPermissions(CurrentUser.Id);
+                }
+            }
+            catch { }
 
             // 设置窗体标题
             this.Text = $"MDM系统 - {CurrentUser.Username} - 最后登录时间: {user.LastLoginTime}";
@@ -163,6 +176,14 @@ namespace MDMUI
                 this.Size = new Size(1280, 800);
                 this.StartPosition = FormStartPosition.CenterScreen;
                 this.WindowState = FormWindowState.Maximized;
+
+                // 菜单渲染：统一的现代配色（不改变信息架构/交互习惯）
+                try
+                {
+                    mainMenu.RenderMode = ToolStripRenderMode.Professional;
+                    mainMenu.Renderer = new ToolStripProfessionalRenderer(new MenuColorTable());
+                }
+                catch { }
                 
                 // 创建主菜单
                 CreateMainMenu();
@@ -212,7 +233,8 @@ namespace MDMUI
                     // 创建工艺包规范菜单项
                     ToolStripMenuItem processPackageItem = new ToolStripMenuItem("工艺包规范");
                     processPackageItem.Name = "processPackageItem";
-                    processPackageItem.Tag = "process.package.view";
+                    // 统一权限 Tag 口径：module_action（便于 CheckPermission 解析）
+                    processPackageItem.Tag = "process_view";
                     processPackageItem.Click += MenuItem_Click;
                     processMenu.DropDownItems.Add(processPackageItem);
                     
@@ -392,6 +414,117 @@ namespace MDMUI
                  // 其他菜单项通过 OpenFunctionForm 处理，传递 Name 和 Tag
                 OpenFunctionForm(menuItem.Name, menuItem.Tag as string);
             }
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.K))
+            {
+                ShowCommandPalette();
+                return true;
+            }
+
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        private void ShowCommandPalette()
+        {
+            if (commandPaletteOpening) return;
+
+            try
+            {
+                commandPaletteOpening = true;
+
+                List<CommandPaletteItem> commands = BuildCommandPaletteItems();
+                if (commands.Count == 0) return;
+
+                using (CommandPaletteForm palette = new CommandPaletteForm(commands))
+                {
+                    if (palette.ShowDialog(this) == DialogResult.OK && palette.SelectedCommand != null)
+                    {
+                        ExecuteCommand(palette.SelectedCommand);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Log($"CommandPalette 打开失败: {ex.Message}");
+            }
+            finally
+            {
+                commandPaletteOpening = false;
+            }
+        }
+
+        private List<CommandPaletteItem> BuildCommandPaletteItems()
+        {
+            List<CommandPaletteItem> results = new List<CommandPaletteItem>();
+
+            try
+            {
+                foreach (ToolStripMenuItem top in mainMenu.Items.OfType<ToolStripMenuItem>())
+                {
+                    CollectMenuCommands(top, top.Text, results);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            // 去重（按 FormName）
+            Dictionary<string, CommandPaletteItem> unique = new Dictionary<string, CommandPaletteItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (CommandPaletteItem item in results)
+            {
+                if (string.IsNullOrWhiteSpace(item.FormName)) continue;
+                if (!unique.ContainsKey(item.FormName))
+                {
+                    unique[item.FormName] = item;
+                }
+            }
+
+            return unique.Values
+                .OrderBy(i => i.Group, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private void CollectMenuCommands(ToolStripMenuItem parent, string group, List<CommandPaletteItem> sink)
+        {
+            if (parent == null) return;
+
+            foreach (ToolStripItem childItem in parent.DropDownItems)
+            {
+                if (childItem is ToolStripMenuItem childMenu)
+                {
+                    // 有子菜单：继续下钻，形成路径
+                    if (childMenu.DropDownItems != null && childMenu.DropDownItems.Count > 0)
+                    {
+                        CollectMenuCommands(childMenu, group + " / " + childMenu.Text, sink);
+                        continue;
+                    }
+
+                    sink.Add(new CommandPaletteItem(
+                        title: childMenu.Text,
+                        group: group,
+                        formName: childMenu.Name,
+                        permissionTag: childMenu.Tag as string));
+                }
+            }
+        }
+
+        private void ExecuteCommand(CommandPaletteItem command)
+        {
+            if (command == null) return;
+
+            // 与 MenuItem_Click 行为保持一致
+            if (command.FormName == "系统设置_修改密码")
+            {
+                ChangePasswordMenu_Click(this, EventArgs.Empty);
+                return;
+            }
+
+            OpenFunctionForm(command.FormName, command.PermissionTag);
         }
         
         // 创建状态栏
@@ -1007,6 +1140,7 @@ namespace MDMUI
              else if (permissionTag.StartsWith("production_")) module = "production";
              else if (permissionTag.StartsWith("equipment_")) module = "equipment";
              else if (permissionTag.StartsWith("inventory_")) module = "inventory";
+             else if (permissionTag.StartsWith("process_")) module = "process";
              else if (permissionTag.StartsWith("factory_") || permissionTag.StartsWith("department_") || permissionTag.StartsWith("area_")) module = "factory"; // Group base info under factory?
              else if (permissionTag.StartsWith("user_") || permissionTag.StartsWith("permission_") || permissionTag.StartsWith("log_") || permissionTag.StartsWith("system_")) module = "system";
              else if (permissionTag.StartsWith("data_")) module = "data";

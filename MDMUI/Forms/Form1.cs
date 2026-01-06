@@ -22,6 +22,7 @@ namespace MDMUI
     {
         private UserBLL userBLL;
         private User currentUser;
+        private AppPreferences loginPreferences;
 
         // “玻璃拟态”登录卡片与加载遮罩
         private GlassPanel glassLoginPanel;
@@ -135,6 +136,9 @@ namespace MDMUI
 
             // 从数据库加载工厂列表
             LoadFactoriesForNewUI();
+
+            // 读取并应用“上次登录”偏好（用户名/工厂/语言/记住密码）
+            ApplyLoginPreferences();
 
             // 预创建加载遮罩（避免首次点击时闪烁）
             EnsureLoginLoadingOverlay();
@@ -542,6 +546,88 @@ namespace MDMUI
             this.cboNewFactory.Items.Add("第二电子厂");
             this.cboNewFactory.SelectedIndex = 0;
         }
+
+        private void ApplyLoginPreferences()
+        {
+            try
+            {
+                loginPreferences = AppPreferencesStore.Load();
+
+                if (!string.IsNullOrWhiteSpace(loginPreferences.LastUsername))
+                {
+                    txtNewUsername.Text = loginPreferences.LastUsername;
+                }
+
+                if (!string.IsNullOrWhiteSpace(loginPreferences.LastLanguage))
+                {
+                    SelectComboItem(cboNewLanguage, loginPreferences.LastLanguage);
+                }
+
+                if (!string.IsNullOrWhiteSpace(loginPreferences.LastFactoryName))
+                {
+                    SelectComboItem(cboNewFactory, loginPreferences.LastFactoryName);
+                }
+
+                chkRemember.Checked = loginPreferences.RememberPassword;
+
+                if (loginPreferences.RememberPassword && !string.IsNullOrWhiteSpace(loginPreferences.ProtectedPassword))
+                {
+                    string password = AppPreferencesStore.UnprotectString(loginPreferences.ProtectedPassword);
+                    if (!string.IsNullOrEmpty(password))
+                    {
+                        txtNewPassword.Text = password;
+                    }
+                }
+                else
+                {
+                    // 不记住密码时不覆盖默认体验（首次启动仍显示默认演示账号），但如果用户之前明确取消记住，则清空更符合预期
+                    if (loginPreferences.LastUpdatedUtc != default(DateTime))
+                    {
+                        txtNewPassword.Text = string.Empty;
+                    }
+                }
+            }
+            catch
+            {
+                // 偏好设置读取失败不影响登录主流程
+            }
+        }
+
+        private void SaveLoginPreferences(string username, string password, string factoryName, string language)
+        {
+            try
+            {
+                AppPreferences prefs = loginPreferences ?? new AppPreferences();
+                prefs.LastUsername = username;
+                prefs.LastFactoryName = factoryName;
+                prefs.LastLanguage = language;
+
+                bool rememberPassword = chkRemember.Checked;
+                prefs.RememberPassword = rememberPassword;
+                prefs.ProtectedPassword = rememberPassword ? AppPreferencesStore.ProtectString(password) : string.Empty;
+
+                AppPreferencesStore.Save(prefs);
+                loginPreferences = prefs;
+            }
+            catch
+            {
+                // 保存失败不阻塞登录
+            }
+        }
+
+        private static void SelectComboItem(ComboBox comboBox, string text)
+        {
+            if (comboBox == null || string.IsNullOrEmpty(text)) return;
+
+            for (int i = 0; i < comboBox.Items.Count; i++)
+            {
+                if (string.Equals(comboBox.Items[i]?.ToString(), text, StringComparison.OrdinalIgnoreCase))
+                {
+                    comboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+        }
         
         // 重命名按钮点击事件，避免使用旧的命名
         private async void LoginButton_Click(object sender, EventArgs e)
@@ -552,6 +638,7 @@ namespace MDMUI
             string username = this.txtNewUsername.Text.Trim();
             string password = this.txtNewPassword.Text.Trim();
             string factoryName = this.cboNewFactory.SelectedItem?.ToString();
+            string language = this.cboNewLanguage.SelectedItem?.ToString();
             
             if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
             {
@@ -577,6 +664,8 @@ namespace MDMUI
 
                 if (currentUser != null)
                 {
+                    SaveLoginPreferences(username, password, factoryName, language);
+
                     // 设置用户的工厂ID
                     currentUser.FactoryId = factoryId;
                     
