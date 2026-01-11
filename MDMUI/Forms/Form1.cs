@@ -130,7 +130,7 @@ namespace MDMUI
             // 设置版本标签的基本属性
             ConfigureVersionLabel();
             
-            // 启动时做一次“非破坏性”数据库引导，避免首启缺库/缺表直接崩溃
+            // 启动时做一次“非破坏性”数据库引导，避免首启缺库/缺表直接崩溃      
             if (!EnsureDatabaseReadyForLogin())
             {
                 // 失败时已给出提示并禁用登录按钮
@@ -138,10 +138,16 @@ namespace MDMUI
             }
 
             // 从数据库加载工厂列表
-            LoadFactoriesForNewUI();
+            using (AppTelemetry.Measure("UI.LoadFactories"))
+            {
+                LoadFactoriesForNewUI();
+            }
 
             // 读取并应用“上次登录”偏好（用户名/工厂/语言/记住密码）
-            ApplyLoginPreferences();
+            using (AppTelemetry.Measure("UI.ApplyLoginPreferences"))
+            {
+                ApplyLoginPreferences();
+            }
 
             // 预创建加载遮罩（避免首次点击时闪烁）
             EnsureLoginLoadingOverlay();
@@ -151,11 +157,15 @@ namespace MDMUI
         {
             try
             {
-                DatabaseBootstrapper.EnsureDatabaseReady();
+                using (AppTelemetry.Measure("DB.EnsureDatabaseReady"))
+                {
+                    DatabaseBootstrapper.EnsureDatabaseReady();
+                }
                 return true;
             }
             catch (Exception ex)
             {
+                try { AppLog.Error(ex, "数据库初始化失败（登录前置检查）"); } catch { }
                 string message =
                     "数据库初始化失败，登录功能已被禁用。\n\n" +
                     "原因: " + CommonHelper.GetFullExceptionMessage(ex) + "\n\n" +

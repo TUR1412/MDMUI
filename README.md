@@ -136,6 +136,7 @@ $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catal
 
 - 默认日志目录：`%LOCALAPPDATA%\\MDMUI\\logs`
 - 默认日志文件：`mdmui-YYYYMMDD.log`（按天），并对单文件大小做轮转
+- 应用内入口：`系统设置 -> 打开日志目录`（需要 system:view 权限或超级管理员）
 - 配置覆盖（环境变量优先于 App.config）：
   - `MDMUI_LOG_DIR` / `MDMUI.LogDirectory`
   - `MDMUI_LOG_MAX_MB` / `MDMUI.LogMaxMB`
@@ -145,6 +146,7 @@ $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catal
 
 English:
 - Default log dir: `%LOCALAPPDATA%\\MDMUI\\logs` (daily file `mdmui-YYYYMMDD.log`, with size-based rotation)
+- In-app shortcut: `System Settings -> Open Log Folder` (requires system:view or Super Admin)
 - Overrides: environment variables > `App.config` (`MDMUI_LOG_DIR`, `MDMUI_LOG_MAX_MB`, `MDMUI_LOG_RETENTION_DAYS`, `MDMUI_LOG_DISABLED`)
 - Unhandled exceptions show a crash report dialog (copy details / open logs)
 

@@ -46,3 +46,4 @@
 ## 变更历史
 - 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)        
 - 202601120248_mdmui_observability (history/2026-01/202601120248_mdmui_observability/)
+- 202601120314_mdmui_diagnostics_entry (history/2026-01/202601120314_mdmui_diagnostics_entry/)

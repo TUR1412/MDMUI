@@ -37,6 +37,7 @@
 ### 需求: 未处理异常兜底
 **模块:** Forms
 未处理异常统一弹出崩溃报告窗，支持复制详情与打开日志目录，便于定位问题。
+系统设置菜单提供“打开日志目录”快捷入口，便于日常排障。
 
 ## API接口
 - 无对外 API
@@ -51,3 +52,4 @@
 ## 变更历史
 - 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)
 - 202601120248_mdmui_observability (history/2026-01/202601120248_mdmui_observability/)
+- 202601120314_mdmui_diagnostics_entry (history/2026-01/202601120314_mdmui_diagnostics_entry/)

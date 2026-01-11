@@ -17,4 +17,4 @@
 
 - 202601112006_mdmui_revamp (2026-01/202601112006_mdmui_revamp/) - 全链路重构与功能增强
 - 202601120248_mdmui_observability (2026-01/202601120248_mdmui_observability/) - 可观测性与测试补全
-
+- 202601120314_mdmui_diagnostics_entry (2026-01/202601120314_mdmui_diagnostics_entry/) - 诊断入口与关键路径埋点

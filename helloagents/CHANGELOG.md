@@ -10,9 +10,11 @@
 - CrashReporter：未处理异常统一崩溃报告窗（复制详情/打开日志目录）
 - AppTelemetry：轻量性能埋点（`using (Measure)` 记录耗时）
 - MSTest 单元测试工程 `MDMUI.Tests` 与 `scripts/test.ps1`
+- 系统设置菜单新增“打开日志目录”快捷入口
 
 ### Changed
 - CI：`msbuild /restore` + `dotnet test` 覆盖基础单测
+- 关键路径补充性能埋点：菜单创建、窗体打开、登录初始化
 
 ## [1.1.0] - 2026-01-11
 ### Added

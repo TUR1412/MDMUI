@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Diagnostics;
+using System.IO;
 using MDMUI.BLL;
 using MDMUI.DAL;
 using MDMUI.Model;
@@ -211,12 +213,14 @@ namespace MDMUI
         
         // 创建主菜单 (修改权限检查逻辑)
         private void CreateMainMenu()
-        { 
-            try
+        {
+            using (AppTelemetry.Measure("UI.CreateMainMenu"))
             {
-                // 清除现有菜单项
-                mainMenu.Items.Clear();
-                LogHelper.Log("开始创建主菜单...");
+                try
+                {
+                    // 清除现有菜单项
+                    mainMenu.Items.Clear();
+                    LogHelper.Log("开始创建主菜单...");
 
                 // 检查当前用户是否为null，避免空引用
                 if (CurrentUser == null)
@@ -331,7 +335,8 @@ namespace MDMUI
                     systemMenu.DropDownItems.Add(CreateMenuItem("系统参数", "系统设置_系统参数", "system_params_view"));
                     systemMenu.DropDownItems.Add(CreateMenuItem("数据备份", "系统设置_数据备份", "data_backup_view"));
                     systemMenu.DropDownItems.Add(CreateMenuItem("操作日志", "系统设置_操作日志", "log_view"));
-                    systemMenu.DropDownItems.Add(new ToolStripSeparator());
+                    systemMenu.DropDownItems.Add(CreateMenuItem("打开日志目录", "系统设置_打开日志目录", null));
+                    systemMenu.DropDownItems.Add(new ToolStripSeparator());     
                     addedSystemItem = true;
                      LogHelper.Log("已添加 系统设置 (高级功能) 子菜单 (权限检查通过)");
                 }
@@ -356,13 +361,44 @@ namespace MDMUI
                    item.Padding = new Padding(10, 0, 10, 0);
                    item.Margin = new Padding(2, 0, 2, 0);
                 }
-                LogHelper.Log("主菜单创建完成。");
+                    LogHelper.Log("主菜单创建完成。");
+                }
+                catch (Exception ex)
+                {
+                    LogHelper.Log($"创建菜单项时出错: {ex.Message}");
+                    MessageBox.Show($"创建菜单时出错: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    // 可以在这里添加一个默认的最小化菜单
+                }
+            }
+        }
+
+        private void OpenLogDirectory()
+        {
+            try
+            {
+                string logDir = AppLog.LogDirectory;
+                if (string.IsNullOrWhiteSpace(logDir))
+                {
+                    MessageBox.Show("日志功能未启用或日志目录不可用。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                if (!Directory.Exists(logDir))
+                {
+                    Directory.CreateDirectory(logDir);
+                }
+
+                System.Diagnostics.Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = "\"" + logDir + "\"",
+                    UseShellExecute = true
+                });
             }
             catch (Exception ex)
             {
-                LogHelper.Log($"创建菜单项时出错: {ex.Message}");
-                MessageBox.Show($"创建菜单时出错: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                // 可以在这里添加一个默认的最小化菜单
+                LogHelper.Log($"打开日志目录失败: {ex.Message}");
+                MessageBox.Show($"打开日志目录失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         
@@ -837,8 +873,12 @@ namespace MDMUI
                 return;
             }
 
+            IDisposable perfScope = null;
+
             try
             {
+                perfScope = AppTelemetry.Measure("UI.OpenFunctionForm:" + formName);
+
                 LogHelper.Log($"尝试打开窗体: {formName} (Tag: {permissionTag})");
                 // 检查TabControl是否已初始化
                 if (tabControl == null)
@@ -926,13 +966,17 @@ namespace MDMUI
                     case "系统设置_系统参数": // Corrected Case Prefix
                         form = new FrmSystemParameters(CurrentUser);
                         break;
-                    
+
                     // 数据管理 (Corrected Case Prefix based on CreateMainMenu)
                     case "系统设置_数据备份": // Corrected Case Prefix
                         form = new FrmDataBackup(CurrentUser);
                         break;
 
-                    // 帮助菜单项 (Assuming Help_About is still handled)
+                    case "系统设置_打开日志目录":
+                        OpenLogDirectory();
+                        break;
+
+                    // 帮助菜单项 (Assuming Help_About is still handled)        
                     case "Help_About":
                         MessageBox.Show("关于信息待添加。", "关于", MessageBoxButtons.OK, MessageBoxIcon.Information);
                          break;
@@ -989,8 +1033,12 @@ namespace MDMUI
             }
             catch (Exception ex)
             {
-                 MessageBox.Show($"打开功能窗体 '{formName}' 时出错: {ex.Message}\n{ex.StackTrace}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                 LogHelper.Log($"打开窗体 {formName} 时异常: {ex.Message}");
+                MessageBox.Show($"打开功能窗体 '{formName}' 时出错: {ex.Message}\n{ex.StackTrace}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogHelper.Log($"打开窗体 {formName} 时异常: {ex.Message}");
+            }
+            finally
+            {
+                try { perfScope?.Dispose(); } catch { }
             }
         }
         
