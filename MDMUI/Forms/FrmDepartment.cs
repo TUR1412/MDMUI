@@ -10,6 +10,8 @@ using System.Windows.Forms;
 using MDMUI.Model;
 using MDMUI.Utility;
 using MDMUI.BLL;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 
 namespace MDMUI
 {
@@ -23,6 +25,19 @@ namespace MDMUI
         private PermissionChecker permissionChecker;
         private DepartmentService departmentService;
 
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: do not rewrite Designer)
+        private bool modernLayoutInitialized;
+        private CardPanel modernHeaderCard;
+        private Panel gridHostPanel;
+        private Label emptyStateLabel;
+        private ComboBox modernFactoryComboBox;
+        private TextBox modernSearchTextBox;
+        private AppButton modernAddButton;
+        private AppButton modernEditButton;
+        private AppButton modernDeleteButton;
+        private AppButton modernRefreshButton;
+        private AppButton modernSearchButton;
+
         /// <summary>
         /// 构造函数
         /// </summary>
@@ -33,6 +48,324 @@ namespace MDMUI
             this.permissionChecker = new PermissionChecker();
             this.departmentService = new DepartmentService();
             this.Load += FrmDepartment_Load;
+
+            InitializeModernLayout();
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmDepartment.ModernLayout"))
+                {
+                    EnsureModernHeader();
+                    EnsureGridHostAndEmptyState();
+                    EnsureStatusStrip();
+
+                    try { GridStyler.Apply(dataGridViewDepartments); } catch { }
+                    TryEnableGridDoubleBuffering(dataGridViewDepartments);
+
+                    // UiThemingBootstrapper 只对窗体执行一次；这里确保运行时新 
+                    // 增控件也能吃到统一风格
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+
+                    UpdateDepartmentListIndicators(GetSearchTerm(), dataGridViewDepartments?.Rows?.Count ?? 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化部门管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureModernHeader()
+        {
+            if (modernHeaderCard != null) return;
+
+            ToolStrip oldToolStrip = toolStrip1;
+
+            ToolStripButton oldAdd = toolStripButtonAdd;
+            ToolStripButton oldEdit = toolStripButtonEdit;
+            ToolStripButton oldDelete = toolStripButtonDelete;
+            ToolStripButton oldRefresh = toolStripButtonRefresh;
+            ToolStripButton oldSearch = toolStripButtonSearch;
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 132
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            header.Controls.Add(layout);
+
+            ActionToolbar actionsToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+            ActionToolbar searchToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = string.IsNullOrWhiteSpace(Text) ? "部门管理" : Text,
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 10, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(11f); } catch { }
+            actionsToolbar.LeftPanel.Controls.Add(title);
+
+            modernAddButton = CreateAppButton(oldAdd?.Text ?? "新增", AppButtonVariant.Primary, BtnAdd_Click, name: "btnAdd");
+            modernEditButton = CreateAppButton(oldEdit?.Text ?? "编辑", AppButtonVariant.Secondary, BtnEdit_Click, name: "btnEdit");
+            modernDeleteButton = CreateAppButton(oldDelete?.Text ?? "删除", AppButtonVariant.Danger, BtnDelete_Click, name: "btnDelete");
+            modernRefreshButton = CreateAppButton(oldRefresh?.Text ?? "刷新", AppButtonVariant.Secondary, BtnRefresh_Click, name: "btnRefresh");
+
+            CopyToolStripState(oldAdd, modernAddButton);
+            CopyToolStripState(oldEdit, modernEditButton);
+            CopyToolStripState(oldDelete, modernDeleteButton);
+            CopyToolStripState(oldRefresh, modernRefreshButton);
+
+            actionsToolbar.RightPanel.Controls.Add(modernAddButton);
+            actionsToolbar.RightPanel.Controls.Add(modernEditButton);
+            actionsToolbar.RightPanel.Controls.Add(modernDeleteButton);
+            actionsToolbar.RightPanel.Controls.Add(modernRefreshButton);
+
+            Label factoryLabel = CreateFieldLabel("工厂");
+            modernFactoryComboBox = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 160
+            };
+            modernFactoryComboBox.SelectedIndexChanged += CboFactory_SelectedIndexChanged;
+
+            Label searchLabel = CreateFieldLabel("部门名称");
+            modernSearchTextBox = new TextBox
+            {
+                Width = 180
+            };
+            modernSearchTextBox.KeyDown += (s, e) =>
+            {
+                try
+                {
+                    if (e.KeyCode == Keys.Enter)
+                    {
+                        btnSearch_Click(this, EventArgs.Empty);
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                }
+                catch { }
+            };
+
+            modernSearchButton = CreateAppButton(oldSearch?.Text ?? "查询", AppButtonVariant.Primary, btnSearch_Click, name: "btnSearch");
+            CopyToolStripState(oldSearch, modernSearchButton);
+
+            searchToolbar.LeftPanel.Controls.Add(factoryLabel);
+            searchToolbar.LeftPanel.Controls.Add(modernFactoryComboBox);
+            searchToolbar.LeftPanel.Controls.Add(searchLabel);
+            searchToolbar.LeftPanel.Controls.Add(modernSearchTextBox);
+            searchToolbar.RightPanel.Controls.Add(modernSearchButton);
+
+            try { AcceptButton = modernSearchButton; } catch { }
+
+            layout.Controls.Add(actionsToolbar, 0, 0);
+            layout.Controls.Add(searchToolbar, 0, 1);
+
+            Controls.Add(header);
+            header.BringToFront();
+            modernHeaderCard = header;
+
+            // 旧 ToolStrip 移除并释放（开闭原则：运行时替换，不动 Designer）
+            try { if (oldToolStrip != null) Controls.Remove(oldToolStrip); } catch { }
+            try { oldToolStrip?.Dispose(); } catch { }
+
+            toolStrip1 = null;
+            toolStripButtonAdd = null;
+            toolStripButtonEdit = null;
+            toolStripButtonDelete = null;
+            toolStripButtonRefresh = null;
+            toolStripLabelFactory = null;
+            toolStripComboBoxFactory = null;
+            toolStripLabelSearch = null;
+            toolStripTextBoxSearchName = null;
+            toolStripButtonSearch = null;
+        }
+
+        private void EnsureGridHostAndEmptyState()
+        {
+            if (gridHostPanel != null) return;
+            if (dataGridViewDepartments == null) return;
+
+            int gridIndex = 0;
+            try { gridIndex = Controls.GetChildIndex(dataGridViewDepartments); } catch { }
+
+            try { Controls.Remove(dataGridViewDepartments); } catch { }
+
+            Panel host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+
+            dataGridViewDepartments.Dock = DockStyle.Fill;
+            dataGridViewDepartments.BorderStyle = BorderStyle.None;
+            host.Controls.Add(dataGridViewDepartments);
+
+            Label empty = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            try { empty.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+            host.Controls.Add(empty);
+            try { empty.BringToFront(); } catch { }
+
+            Controls.Add(host);
+            try { Controls.SetChildIndex(host, gridIndex); } catch { }
+
+            gridHostPanel = host;
+            emptyStateLabel = empty;
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStrip1 == null) return;
+            try { statusStrip1.SizingGrip = false; } catch { }
+        }
+
+        private static void TryEnableGridDoubleBuffering(DataGridView grid)
+        {
+            if (grid == null) return;
+
+            try
+            {
+                typeof(DataGridView).GetProperty(
+                        "DoubleBuffered",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?.SetValue(grid, true, null);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private static Label CreateFieldLabel(string text)
+        {
+            return new Label
+            {
+                AutoSize = true,
+                Text = text,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                Margin = new Padding(0, 10, 8, 0)
+            };
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick, string name)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                button.Name = name.Trim();
+            }
+
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyToolStripState(ToolStripItem source, Control target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+        }
+
+        private ComboBox GetFactoryComboBox()
+        {
+            if (modernFactoryComboBox != null) return modernFactoryComboBox;
+            try { return toolStripComboBoxFactory?.ComboBox; } catch { return null; }
+        }
+
+        private string GetSearchTerm()
+        {
+            try
+            {
+                if (modernSearchTextBox != null) return modernSearchTextBox.Text?.Trim() ?? "";
+                if (toolStripTextBoxSearchName != null) return toolStripTextBoxSearchName.Text?.Trim() ?? "";
+            }
+            catch { }
+
+            return "";
+        }
+
+        private ComboboxItem GetSelectedFactoryItem()
+        {
+            ComboBox combo = GetFactoryComboBox();
+            if (combo == null) return null;
+            return combo.SelectedItem as ComboboxItem;
+        }
+
+        private void UpdateDepartmentListIndicators(string searchTerm, int count)
+        {
+            string normalized = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim();
+
+            ComboboxItem selectedFactoryItem = GetSelectedFactoryItem();
+            string factoryText = selectedFactoryItem?.Text;
+            bool hasFactory = !string.IsNullOrWhiteSpace(factoryText) && factoryText != "所有工厂";
+
+            if (emptyStateLabel != null)
+            {
+                if (count <= 0)
+                {
+                    emptyStateLabel.Text = string.IsNullOrWhiteSpace(normalized) ? "暂无部门数据" : "未找到匹配的部门";
+                    emptyStateLabel.Visible = true;
+                    try { emptyStateLabel.BringToFront(); } catch { }
+                }
+                else
+                {
+                    emptyStateLabel.Visible = false;
+                }
+            }
+
+            if (count <= 0)
+            {
+                UpdateStatus(string.IsNullOrWhiteSpace(normalized) ? "暂无部门数据" : $"未找到匹配部门：{normalized}");
+            }
+            else
+            {
+                UpdateStatus(hasFactory ? $"工厂[{factoryText}] 共 {count} 条部门" : $"共 {count} 条部门");
+            }
         }
 
         private void FrmDepartment_Load(object sender, EventArgs e)
@@ -57,17 +390,23 @@ namespace MDMUI
         /// </summary>
         private void SetButtonPermissions()
         {
-            bool isAdmin = currentUser.RoleName == "超级管理员";
-            
-            if (this.toolStrip1 == null) return;
+            bool isAdmin = currentUser != null && currentUser.RoleName == "超级管理员";
 
-            ToolStripItem btnAdd = toolStrip1.Items["toolStripButtonAdd"];
-            ToolStripItem btnEdit = toolStrip1.Items["toolStripButtonEdit"];
-            ToolStripItem btnDelete = toolStrip1.Items["toolStripButtonDelete"];
+            ToolStripItem btnAdd = toolStripButtonAdd;
+            ToolStripItem btnEdit = toolStripButtonEdit;
+            ToolStripItem btnDelete = toolStripButtonDelete;
 
-            if (btnAdd == null || btnEdit == null || btnDelete == null)
+            bool hasAnyButtonTarget =
+                btnAdd != null ||
+                btnEdit != null ||
+                btnDelete != null ||
+                modernAddButton != null ||
+                modernEditButton != null ||
+                modernDeleteButton != null;
+
+            if (!hasAnyButtonTarget)
             {
-                Console.WriteLine("警告: FrmDepartment 工具栏按钮未全部找到。");
+                try { AppLog.Warn("警告: FrmDepartment 工具栏按钮未全部找到。"); } catch { }
             }
 
             bool canAdd = isAdmin || permissionChecker.HasPermission(currentUser.Id, "department", "add");
@@ -77,6 +416,10 @@ namespace MDMUI
             if (btnAdd != null) btnAdd.Enabled = canAdd;
             if (btnEdit != null) btnEdit.Enabled = canEdit;
             if (btnDelete != null) btnDelete.Enabled = canDelete;
+
+            if (modernAddButton != null) modernAddButton.Enabled = canAdd;
+            if (modernEditButton != null) modernEditButton.Enabled = canEdit;
+            if (modernDeleteButton != null) modernDeleteButton.Enabled = canDelete;
         }
 
         /// <summary>
@@ -88,30 +431,32 @@ namespace MDMUI
             {
                 List<ComboboxItem> factoryItems = departmentService.GetFactoriesForComboBox(currentUser);
 
-                this.toolStripComboBoxFactory.ComboBox.DataSource = null;
-                this.toolStripComboBoxFactory.ComboBox.Items.Clear();
-                
+                ComboBox combo = GetFactoryComboBox();
+                if (combo == null) return;
+
+                combo.DataSource = null;
+                combo.Items.Clear();
+
                 if (currentUser.RoleName == "超级管理员")
                 {
-                    this.toolStripComboBoxFactory.ComboBox.Items.Add(new ComboboxItem("所有工厂", ""));
+                    combo.Items.Add(new ComboboxItem("所有工厂", ""));
                 }
-                
-                this.toolStripComboBoxFactory.ComboBox.Items.AddRange(factoryItems.ToArray());
-                this.toolStripComboBoxFactory.ComboBox.DisplayMember = "Text";
-                this.toolStripComboBoxFactory.ComboBox.ValueMember = "Value";
+
+                combo.Items.AddRange(factoryItems.ToArray());
+                combo.DisplayMember = "Text";
+                combo.ValueMember = "Value";
 
                 if (currentUser.RoleName != "超级管理员" && !string.IsNullOrEmpty(currentUser.FactoryId))
                 {
-                    SelectComboBoxItemByValue(this.toolStripComboBoxFactory.ComboBox, currentUser.FactoryId);
-                    this.toolStripComboBoxFactory.Enabled = false; 
+                    SelectComboBoxItemByValue(combo, currentUser.FactoryId);
+                    combo.Enabled = false;
                 }
                 else
                 {
-                    this.toolStripComboBoxFactory.Enabled = true;
-                    if (this.toolStripComboBoxFactory.ComboBox.Items.Count > 0)
-                        this.toolStripComboBoxFactory.ComboBox.SelectedIndex = 0;
+                    combo.Enabled = true;
+                    if (combo.Items.Count > 0) combo.SelectedIndex = 0;
                 }
-                this.toolStripComboBoxFactory.ComboBox.Width = 150;
+                combo.Width = 160;
             }
             catch (Exception ex)
             {
@@ -149,62 +494,72 @@ namespace MDMUI
         {
             try
             {
-                string selectedFactoryId = (this.toolStripComboBoxFactory.ComboBox.SelectedItem as ComboboxItem)?.Value?.ToString();
-                string searchTerm = this.toolStripTextBoxSearchName.Text.Trim();
+                using (AppTelemetry.Measure("department.load_list"))
+                {
+                    ComboBox factoryCombo = GetFactoryComboBox();
+                    string searchTerm = GetSearchTerm();
+                    ComboboxItem selectedFactoryItem = GetSelectedFactoryItem();
+                    string selectedFactoryId = selectedFactoryItem?.Value?.ToString();
 
-                if (this.toolStripComboBoxFactory.ComboBox.SelectedItem == null && currentUser.RoleName != "超级管理员")
-                {
-                    this.dataGridViewDepartments.DataSource = null;
-                    UpdateStatus("请先确保工厂列表已加载");
-                    return;
-                }
-                
-                if (currentUser.RoleName != "超级管理员" && string.IsNullOrEmpty(selectedFactoryId))
-                {
-                    ComboboxItem selectedItem = this.toolStripComboBoxFactory.ComboBox.SelectedItem as ComboboxItem;
-                    if (selectedItem != null && selectedItem.Value.ToString() == "")
+                    if (factoryCombo == null || (factoryCombo.SelectedItem == null && currentUser.RoleName != "超级管理员"))
                     {
                         this.dataGridViewDepartments.DataSource = null;
-                        UpdateStatus("请选择一个具体的工厂进行查看");
+                        UpdateStatus("请先确保工厂列表已加载");
+                        UpdateDepartmentListIndicators(searchTerm, 0);
                         return;
                     }
-                    else if(string.IsNullOrEmpty(currentUser.FactoryId)) {
-                        this.dataGridViewDepartments.DataSource = null;
-                        UpdateStatus("当前用户未关联工厂，无法加载部门");
-                        return;
+
+                    if (currentUser.RoleName != "超级管理员" && string.IsNullOrEmpty(selectedFactoryId))
+                    {
+                        if (selectedFactoryItem != null && (selectedFactoryItem.Value?.ToString() ?? "") == "")
+                        {
+                            this.dataGridViewDepartments.DataSource = null;
+                            UpdateStatus("请选择一个具体的工厂进行查看");
+                            UpdateDepartmentListIndicators(searchTerm, 0);
+                            return;
+                        }
+
+                        if (string.IsNullOrEmpty(currentUser.FactoryId))
+                        {
+                            this.dataGridViewDepartments.DataSource = null;
+                            UpdateStatus("当前用户未关联工厂，无法加载部门");
+                            UpdateDepartmentListIndicators(searchTerm, 0);
+                            return;
+                        }
                     }
-                }
 
-                if (string.IsNullOrEmpty(selectedFactoryId))
-                {
-                    currentDepartments = departmentService.GetAllDepartments();
-                    UpdateStatus($"加载了所有工厂共 {currentDepartments.Count} 条部门信息");
-                }
-                else
-                {
-                    currentDepartments = departmentService.GetDepartmentsByFactoryId(selectedFactoryId);
-                    UpdateStatus($"加载了工厂 [{this.toolStripComboBoxFactory.ComboBox.Text}] 共 {currentDepartments.Count} 条部门信息");
-                }
+                    if (string.IsNullOrEmpty(selectedFactoryId))
+                    {
+                        currentDepartments = departmentService.GetAllDepartments();
+                    }
+                    else
+                    {
+                        currentDepartments = departmentService.GetDepartmentsByFactoryId(selectedFactoryId);
+                    }
 
-                List<Department> filteredDepartments = currentDepartments;
-                if (!string.IsNullOrWhiteSpace(searchTerm))
-                {
-                    filteredDepartments = currentDepartments
-                        .Where(d => d.DeptName != null && d.DeptName.IndexOf(searchTerm, StringComparison.OrdinalIgnoreCase) >= 0)
-                        .ToList();
-                    UpdateStatus($"筛选结果: {filteredDepartments.Count} 条");
-                }
+                    List<Department> filteredDepartments = currentDepartments;
+                    if (!string.IsNullOrWhiteSpace(searchTerm))
+                    {
+                        filteredDepartments = currentDepartments
+                            .Where(d => d.DeptName != null && d.DeptName.IndexOf(searchTerm, StringComparison.OrdinalIgnoreCase) >= 0)
+                            .ToList();
+                    }
 
-                var bindingList = new BindingList<Department>(filteredDepartments);
-                var source = new BindingSource(bindingList, null);
-                this.dataGridViewDepartments.DataSource = source;
+                    var bindingList = new BindingList<Department>(filteredDepartments);
+                    var source = new BindingSource(bindingList, null);
+                    this.dataGridViewDepartments.DataSource = source;
+
+                    UpdateDepartmentListIndicators(searchTerm, filteredDepartments?.Count ?? 0);
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("加载部门数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try { AppLog.Error(ex, "加载部门数据失败"); } catch { }
                 UpdateStatus("加载部门数据失败");
                 this.dataGridViewDepartments.DataSource = null;
                 currentDepartments = new List<Department>();
+                UpdateDepartmentListIndicators(GetSearchTerm(), 0);
             }
         }
 
@@ -213,29 +568,42 @@ namespace MDMUI
         /// </summary>
         private void ConfigureDataGridView()
         {
-            typeof(DataGridView).GetProperty("DoubleBuffered", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).SetValue(dataGridViewDepartments, true, null);
-
-            dataGridViewDepartments.AutoGenerateColumns = false;
-            dataGridViewDepartments.Columns.Clear();
-
-            dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeptId", DataPropertyName = "DeptId", HeaderText = "部门ID", Width = 120 });
-            dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "DeptName", DataPropertyName = "DeptName", HeaderText = "部门名称", Width = 150 });
-            // Add other columns as needed here, e.g., ParentDeptName, ManagerName, CreateTime, UpdateTime
-            // Ensure DataPropertyName matches the properties in the Department model
-            // Example:
-            // dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "colParentDeptName", DataPropertyName = "ParentDeptName", HeaderText = "上级部门", Width = 150 });
-            // dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "colManagerName", DataPropertyName = "ManagerName", HeaderText = "负责人", Width = 120 });
-            // dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "colCreateTime", DataPropertyName = "CreateTime", HeaderText = "创建时间", Width = 140, DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm" } });
-            // dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "colUpdateTime", DataPropertyName = "UpdateTime", HeaderText = "更新时间", Width = 140, DefaultCellStyle = new DataGridViewCellStyle { Format = "yyyy-MM-dd HH:mm" } });
-            // dataGridViewDepartments.Columns.Add(new DataGridViewTextBoxColumn { Name = "colDescription", DataPropertyName = "Description", HeaderText = "描述", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+            TryEnableGridDoubleBuffering(dataGridViewDepartments);
+            try { GridStyler.Apply(dataGridViewDepartments); } catch { }
         }
 
         private void UpdateStatus(string message)
-        { 
-             if (this.toolStripStatusLabelStatus != null)
+        {
+            if (this.toolStripStatusLabelStatus != null)
             {
                 this.toolStripStatusLabelStatus.Text = message;
             }
+        }
+
+        private bool TryGetSelectedDepartment(out Department selected)
+        {
+            selected = null;
+
+            try
+            {
+                if (dataGridViewDepartments?.SelectedRows == null || dataGridViewDepartments.SelectedRows.Count <= 0)
+                {
+                    return false;
+                }
+
+                DataGridViewRow row = dataGridViewDepartments.SelectedRows[0];
+                if (row?.DataBoundItem is Department dept)
+                {
+                    selected = dept;
+                    return true;
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -245,14 +613,10 @@ namespace MDMUI
         {
             // 权限已在 SetButtonPermissions 中检查和禁用按钮
             // string selectedFactoryId = this.toolStripComboBoxFactory.ComboBox.SelectedValue?.ToString(); // Original problematic line
-            
+
             // Safer way to get FactoryId
-            string selectedFactoryId = null;
-            ComboboxItem selectedFactoryItem = this.toolStripComboBoxFactory.ComboBox.SelectedItem as ComboboxItem;
-            if (selectedFactoryItem != null && selectedFactoryItem.Value != null)
-            {
-                selectedFactoryId = selectedFactoryItem.Value.ToString();
-            }
+            ComboboxItem selectedFactoryItem = GetSelectedFactoryItem();
+            string selectedFactoryId = selectedFactoryItem?.Value?.ToString();
 
             if (string.IsNullOrEmpty(selectedFactoryId))
             {
@@ -290,16 +654,14 @@ namespace MDMUI
                 return;
             }
 
-            // Attempt to get DeptId and DeptName from the selected row
-            // Ensure the column names ("DeptId", "DeptName") match the actual DataGridView column names or DataPropertyNames
-            string deptId = this.dataGridViewDepartments.SelectedRows[0].Cells["DeptId"]?.Value?.ToString();
-            string deptName = this.dataGridViewDepartments.SelectedRows[0].Cells["DeptName"]?.Value?.ToString() ?? "选定部门"; // Default name if fetching fails
-
-            if (string.IsNullOrEmpty(deptId))
+            if (!TryGetSelectedDepartment(out Department selectedDept) || string.IsNullOrWhiteSpace(selectedDept?.DeptId))
             {
-                 MessageBox.Show("无法获取选定部门的ID。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                 return;
+                MessageBox.Show("无法获取选定部门的ID。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
             }
+
+            string deptId = selectedDept.DeptId;
+            string deptName = string.IsNullOrWhiteSpace(selectedDept.DeptName) ? deptId : selectedDept.DeptName;
 
             if (MessageBox.Show($"确定要删除部门 [{deptName}] 及其所有子部门吗？\n此操作不可恢复！", "确认删除", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
             {
@@ -354,11 +716,16 @@ namespace MDMUI
         private void CboFactory_SelectedIndexChanged(object sender, EventArgs e)
         {
             // 仅当用户手动更改选择时才重新加载，避免 Load 事件触发时不必要的加载
-            if (this.toolStripComboBoxFactory.ComboBox.Focused || MouseButtons == MouseButtons.Left) 
-            {
-                 UpdateStatus("工厂已更改，正在重新加载部门列表...");
-                 LoadDepartments();
-            }
+            ComboBox combo = sender as ComboBox;
+            if (combo == null && sender is ToolStripComboBox toolStripCombo) combo = toolStripCombo.ComboBox;
+            if (combo == null) combo = GetFactoryComboBox();
+
+            bool isUserAction = false;
+            try { isUserAction = (combo != null && combo.Focused) || MouseButtons == MouseButtons.Left; } catch { isUserAction = MouseButtons == MouseButtons.Left; }
+            if (!isUserAction) return;
+
+            UpdateStatus("工厂已更改，正在重新加载部门列表...");
+            LoadDepartments();
         }
 
         /// <summary>
@@ -388,30 +755,25 @@ namespace MDMUI
                  // string deptId = this.dataGridViewDepartments.SelectedRows[0].Cells["DeptId"].Value.ToString(); 
                  // string factoryId = this.toolStripComboBoxFactory.ComboBox.SelectedValue.ToString(); // Original problematic line
 
-                 // Safer way to get DeptId
-                 string deptId = this.dataGridViewDepartments.SelectedRows[0].Cells["DeptId"]?.Value?.ToString();
-                 if (string.IsNullOrEmpty(deptId))
-                 {
-                     MessageBox.Show("无法获取选定部门的ID。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                     return;
-                 }
+                if (!TryGetSelectedDepartment(out Department selectedDept) || string.IsNullOrWhiteSpace(selectedDept?.DeptId))
+                {
+                    MessageBox.Show("无法获取选定部门的ID。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
-                 // Safer way to get FactoryId
-                 string factoryId = null;
-                 ComboboxItem selectedFactoryItem = this.toolStripComboBoxFactory.ComboBox.SelectedItem as ComboboxItem;
-                 if (selectedFactoryItem != null && selectedFactoryItem.Value != null)
-                 {
-                     factoryId = selectedFactoryItem.Value.ToString();
-                 }
+                string deptId = selectedDept.DeptId;
+                string factoryId = selectedDept.FactoryId;
 
-                 // Ensure factoryId was obtained
-                 if (string.IsNullOrEmpty(factoryId))
-                 {
-                     // This can happen if "所有工厂" is selected or due to other issues.
-                     // Assuming editing requires a specific factory context.
-                     MessageBox.Show("无法确定所选部门关联的工厂，请在下拉列表中选择一个具体的工厂。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                     return;
-                 }
+                if (string.IsNullOrWhiteSpace(factoryId))
+                {
+                    factoryId = GetSelectedFactoryItem()?.Value?.ToString();
+                }
+
+                if (string.IsNullOrWhiteSpace(factoryId))
+                {
+                    MessageBox.Show("无法确定所选部门关联的工厂，请在下拉列表中选择一个具体的工厂。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
 
                  using (FrmDepartmentEdit frmEdit = new FrmDepartmentEdit(deptId, factoryId, currentUser))
                  {

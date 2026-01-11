@@ -16,10 +16,21 @@ namespace MDMUI.DAL
         public List<Department> GetAllDepartments()
         {
             List<Department> departments = new List<Department>();
-            string query = @"SELECT d.DeptId, d.DeptName, d.ParentDeptId, d.FactoryId, d.Description, d.CreateTime,
-                                  d.ManagerEmployeeId, e.EmployeeName as ManagerName
-                           FROM Department d
-                           LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId";
+            string query = @"SELECT d.DeptId,
+                                    d.DeptName,
+                                    d.ParentDeptId,
+                                    p.DeptName AS ParentDeptName,
+                                    d.FactoryId,
+                                    f.FactoryName,
+                                    d.Description,
+                                    d.CreateTime,
+                                    d.ManagerEmployeeId,
+                                    e.EmployeeName AS ManagerName
+                             FROM Department d
+                             LEFT JOIN Department p ON d.ParentDeptId = p.DeptId
+                             LEFT JOIN Factory f ON d.FactoryId = f.FactoryId
+                             LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId
+                             ORDER BY d.DeptName";
                            // 可以添加 ORDER BY
 
             using (SqlConnection connection = new SqlConnection(connectionString))
@@ -48,11 +59,22 @@ namespace MDMUI.DAL
         public List<Department> GetDepartmentsByFactoryId(string factoryId)
         {
             List<Department> departments = new List<Department>();
-            string query = @"SELECT d.DeptId, d.DeptName, d.ParentDeptId, d.FactoryId, d.Description, d.CreateTime,
-                                  d.ManagerEmployeeId, e.EmployeeName as ManagerName
-                           FROM Department d
-                           LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId
-                           WHERE d.FactoryId = @FactoryId ORDER BY d.DeptName"; 
+            string query = @"SELECT d.DeptId,
+                                    d.DeptName,
+                                    d.ParentDeptId,
+                                    p.DeptName AS ParentDeptName,
+                                    d.FactoryId,
+                                    f.FactoryName,
+                                    d.Description,
+                                    d.CreateTime,
+                                    d.ManagerEmployeeId,
+                                    e.EmployeeName AS ManagerName
+                             FROM Department d
+                             LEFT JOIN Department p ON d.ParentDeptId = p.DeptId
+                             LEFT JOIN Factory f ON d.FactoryId = f.FactoryId
+                             LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId
+                             WHERE d.FactoryId = @FactoryId
+                             ORDER BY d.DeptName"; 
 
             using (SqlConnection connection = new SqlConnection(connectionString))
             using (SqlCommand command = new SqlCommand(query, connection))
@@ -80,11 +102,21 @@ namespace MDMUI.DAL
         public Department GetDepartmentById(string deptId)
         {
              Department department = null;
-             string query = @"SELECT d.DeptId, d.DeptName, d.ParentDeptId, d.FactoryId, d.Description, d.CreateTime,
-                                  d.ManagerEmployeeId, e.EmployeeName as ManagerName
-                           FROM Department d
-                           LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId
-                           WHERE d.DeptId = @DeptId";
+             string query = @"SELECT d.DeptId,
+                                     d.DeptName,
+                                     d.ParentDeptId,
+                                     p.DeptName AS ParentDeptName,
+                                     d.FactoryId,
+                                     f.FactoryName,
+                                     d.Description,
+                                     d.CreateTime,
+                                     d.ManagerEmployeeId,
+                                     e.EmployeeName AS ManagerName
+                              FROM Department d
+                              LEFT JOIN Department p ON d.ParentDeptId = p.DeptId
+                              LEFT JOIN Factory f ON d.FactoryId = f.FactoryId
+                              LEFT JOIN Employee e ON d.ManagerEmployeeId = e.EmployeeId
+                              WHERE d.DeptId = @DeptId";
 
              using (SqlConnection connection = new SqlConnection(connectionString))
              using (SqlCommand command = new SqlCommand(query, connection))
@@ -260,7 +292,9 @@ namespace MDMUI.DAL
                 DeptId = reader["DeptId"].ToString(),
                 DeptName = reader["DeptName"].ToString(),
                 ParentDeptId = reader.IsDBNull(reader.GetOrdinal("ParentDeptId")) ? null : reader["ParentDeptId"].ToString(),
+                ParentDeptName = reader.GetStringOrDefault("ParentDeptName", null),
                 FactoryId = reader["FactoryId"].ToString(),
+                FactoryName = reader.GetStringOrDefault("FactoryName", null),
                 Description = reader.IsDBNull(reader.GetOrdinal("Description")) ? null : reader["Description"].ToString(),
                 CreateTime = Convert.ToDateTime(reader["CreateTime"]),
                 ManagerEmployeeId = reader.IsDBNull(reader.GetOrdinal("ManagerEmployeeId")) ? null : reader["ManagerEmployeeId"].ToString(),

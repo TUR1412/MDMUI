@@ -23,9 +23,19 @@ namespace MDMUI.Model
         public string ParentDeptId { get; set; }
 
         /// <summary>
+        /// 上级部门名称（用于显示）
+        /// </summary>
+        public string ParentDeptName { get; set; }
+
+        /// <summary>
         /// 所属工厂ID
         /// </summary>
         public string FactoryId { get; set; }
+
+        /// <summary>
+        /// 所属工厂名称（用于显示）
+        /// </summary>
+        public string FactoryName { get; set; }
 
         // /// <summary>
         // /// 负责人 (旧字段)
@@ -41,6 +51,15 @@ namespace MDMUI.Model
         /// 负责人姓名 (通过 JOIN 获取)
         /// </summary>
         public string ManagerName { get; set; } // 新增字段，用于显示
+
+        /// <summary>
+        /// 负责人（兼容旧字段绑定）
+        /// </summary>
+        public string Manager
+        {
+            get => ManagerName;
+            set => ManagerName = value;
+        }
 
         /// <summary>
         /// 描述
