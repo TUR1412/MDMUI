@@ -17,6 +17,8 @@
 #### 场景: 全局应用主题
 - 主题参数来自系统参数或默认值
 - 子窗体自动继承
+- Button 默认采用 Secondary 风格；仅将 Form.AcceptButton 自动上色为 Accent，避免误覆盖“删除”等语义按钮
+- 需要语义按钮时优先使用 `AppButton`（Primary/Secondary/Danger）或明确设置 `BackColor/ForeColor`
 
 ### 需求: 命令面板偏好
 **模块:** Utility
@@ -38,6 +40,7 @@
 - AppLog.Initialize / Info / Warn / Error / Flush / Shutdown
 - CrashReporter.Report
 - AppTelemetry.Measure
+- PasswordGenerator.GenerateStrong / Generate
 
 ## 数据模型
 - AppPreferences (本地 XML)

@@ -122,6 +122,7 @@ $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catal
 系统参数页面支持统一管理策略，例如：
 - `Security.MaxFailedLogin`
 - `Security.LockoutMinutes`
+- `Security.DefaultResetPassword`（可选：用户管理“重置密码”的默认值；不满足策略时会自动生成强密码兜底）
 - `Backup.RetentionDays`
 - `Backup.Directory`
 - `UI.AccentColor`

@@ -151,10 +151,71 @@ namespace MDMUI.Utility
                 button.FlatAppearance.BorderColor = palette.Border;
                 button.FlatAppearance.BorderSize = 1;
 
-                if (IsDefaultBackColor(button.BackColor))
+                Control parent = null;
+                bool isInheritedBack = false;
+                bool isInheritedFore = false;
+                try
                 {
-                    button.BackColor = palette.Accent;
-                    button.ForeColor = Color.White;
+                    parent = button.Parent;
+                    if (parent != null)
+                    {
+                        isInheritedBack = button.BackColor.ToArgb() == parent.BackColor.ToArgb();
+                        isInheritedFore = button.ForeColor.ToArgb() == parent.ForeColor.ToArgb();
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                bool isDefaultBack = IsDefaultBackColor(button.BackColor) || isInheritedBack;
+                bool isDefaultFore = IsDefaultForeColor(button.ForeColor) || isInheritedFore;
+
+                Form hostForm = null;
+                try { hostForm = button.FindForm(); } catch { }
+
+                bool isPrimaryAction = false;
+                bool isCancelAction = false;
+
+                try
+                {
+                    if (hostForm != null)
+                    {
+                        isPrimaryAction = ReferenceEquals(hostForm.AcceptButton, button);
+                        isCancelAction = ReferenceEquals(hostForm.CancelButton, button);
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+
+                // 约定：默认按钮为“次要”风格；仅将窗体 AcceptButton 视为主按钮并上色
+                if (isDefaultBack)
+                {
+                    if (isPrimaryAction)
+                    {
+                        button.BackColor = palette.Accent;
+                        button.FlatAppearance.BorderColor = palette.Accent;
+                        if (isDefaultFore) button.ForeColor = Color.White;
+                    }
+                    else
+                    {
+                        button.BackColor = palette.Surface;
+                        button.FlatAppearance.BorderColor = palette.Border;
+                        if (isDefaultFore) button.ForeColor = palette.TextPrimary;
+
+                        // CancelButton 一般是次要动作，保持 Secondary 即可
+                        _ = isCancelAction;
+                    }
+                }
+                else
+                {
+                    // 按钮已自定义背景色（例如危险按钮/图标按钮），仅在前景色仍为默认时套用主题文本色
+                    if (isDefaultFore)
+                    {
+                        button.ForeColor = palette.TextPrimary;
+                    }
                 }
             }
 

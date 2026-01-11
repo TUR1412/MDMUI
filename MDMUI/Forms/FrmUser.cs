@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
@@ -458,31 +459,134 @@ namespace MDMUI
             }
 
             // --- Add Confirmation Dialog ---
-             DialogResult confirmResult = MessageBox.Show($"确定要重置用户 '{selectedUser.Username}' 的密码吗？\n重置后密码将变为默认密码（例如 '123456'），请通知用户及时修改。",
-                                                         "确认重置密码",
-                                                         MessageBoxButtons.YesNo,
-                                                         MessageBoxIcon.Warning,
-                                                         MessageBoxDefaultButton.Button2);
+            DialogResult confirmResult = MessageBox.Show(
+                $"确定要重置用户 '{selectedUser.Username}' 的密码吗？\n\n"
+                + "重置后将优先使用“系统默认重置密码”；若不满足当前密码策略，将自动生成强密码并提示复制。",
+                "确认重置密码",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
 
             if (confirmResult == DialogResult.Yes)
             {
                 try
                 {
-                    // TODO: Get default password from config or constant
-                    string defaultPassword = "123456";
-                    // bool success = userService.ResetPassword(selectedUser.Id, defaultPassword, currentUser); // Pass plaintext password to BLL
-                    bool success = userService.ResetPassword(selectedUser.Id, defaultPassword, currentUser);
-                    if (success)
+                    using (AppTelemetry.Measure("user.reset_password"))
                     {
-                        MessageBox.Show($"用户 '{selectedUser.Username}' 的密码已重置为默认密码。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        string configuredDefault = TryGetConfiguredDefaultResetPassword();
+                        bool usedGenerated = false;
+                        string newPassword = null;
+
+                        // 按顺序尝试：系统默认 -> 生成强密码(12/16/24/32)
+                        foreach (int length in new[] { 12, 16, 24, 32 })
+                        {
+                            string candidate;
+                            if (!usedGenerated && !string.IsNullOrWhiteSpace(configuredDefault))
+                            {
+                                candidate = configuredDefault;
+                            }
+                            else
+                            {
+                                usedGenerated = true;
+                                candidate = PasswordGenerator.GenerateStrong(length);
+                            }
+
+                            try
+                            {
+                                bool success = userService.ResetPassword(selectedUser.Id, candidate, currentUser);
+                                if (success)
+                                {
+                                    newPassword = candidate;
+                                    break;
+                                }
+                            }
+                            catch (ArgumentException argEx)
+                            {
+                                // 默认密码可能不满足策略：记录后继续尝试自动生成的强密码
+                                AppLog.Warn($"重置密码候选值不满足策略: user={selectedUser.Username}({selectedUser.Id}), reason={argEx.Message}");
+                                usedGenerated = true;
+                            }
+                        }
+
+                        if (string.IsNullOrWhiteSpace(newPassword))
+                        {
+                            MessageBox.Show(
+                                "重置失败：无法生成满足当前密码策略的密码。\n请检查系统参数 Security.PasswordMinLength 等设置。",
+                                "重置失败",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
+                            return;
+                        }
+
+                        bool clipboardOk = false;
+                        if (usedGenerated)
+                        {
+                            try
+                            {
+                                Clipboard.SetText(newPassword);
+                                clipboardOk = true;
+                            }
+                            catch
+                            {
+                                // ignore clipboard failures
+                            }
+                        }
+
+                        if (usedGenerated)
+                        {
+                            MessageBox.Show(
+                                $"用户 '{selectedUser.Username}' 的密码已重置。\n\n新密码：{newPassword}\n\n"
+                                + (clipboardOk ? "已自动复制到剪贴板" : "复制到剪贴板失败")
+                                + "，请妥善保管并通知用户及时修改。",
+                                "成功",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                $"用户 '{selectedUser.Username}' 的密码已重置为系统默认重置密码。",
+                                "成功",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+
+                        AppLog.Info($"用户密码重置成功: target={selectedUser.Username}({selectedUser.Id}), by={currentUser?.Username}({currentUser?.Id}), generated={usedGenerated}");
                     }
-                    // else: userService should throw exception
                 }
                 catch (Exception ex)
                 {
+                    AppLog.Error(ex, $"重置密码失败: target={selectedUser?.Username}({selectedUser?.Id})");
                     MessageBox.Show("重置密码失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
+        }
+
+        private static string TryGetConfiguredDefaultResetPassword()
+        {
+            // 1) 优先：系统参数表（便于运维在线调整）
+            try
+            {
+                string value = new SystemParameterService().GetString("Security.DefaultResetPassword", null);
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+            catch
+            {
+                // ignore
+            }
+
+            // 2) 备选：App.config appSettings（便于本地部署）
+            try
+            {
+                string value = ConfigurationManager.AppSettings["Security.DefaultResetPassword"];
+                if (!string.IsNullOrWhiteSpace(value)) return value.Trim();
+            }
+            catch
+            {
+                // ignore
+            }
+
+            return null;
         }
 
         private void DgvUsers_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
