@@ -11,6 +11,8 @@ using MDMUI.Utility;
 using System.Linq;
 using System.ComponentModel;
 using MDMUI.DAL;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 
 namespace MDMUI
 {
@@ -46,6 +48,14 @@ namespace MDMUI
         // Define hover color for light theme
         private Color hoverBackColor = System.Drawing.SystemColors.ControlLight; 
 
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: keep business logic untouched)
+        private bool modernLayoutInitialized;
+        private CardPanel modernHeaderCard;
+        private Panel gridHostPanel;
+        private Label emptyStateLabel;
+        private StatusStrip statusStrip;
+        private ToolStripStatusLabel statusLabel;
+
         public FrmUser(User user)
         {
             try
@@ -70,6 +80,8 @@ namespace MDMUI
                     // Fallback to a slightly different light gray if ControlLight conflicts
                     hoverBackColor = Color.FromArgb(238, 238, 238); 
                 }
+
+                InitializeModernLayout();
             }
             catch (Exception ex)
             {
@@ -118,13 +130,14 @@ namespace MDMUI
             {
                 this.dgvUsers.Visible = true;
                 this.dgvUsers.BringToFront();
+                BringEmptyStateToFront();
             }
             this.ResumeLayout(true);
             this.Refresh();
         }
 
         // 递归使所有控件可见
-        private void MakeAllControlsVisible(Control parentControl)
+        private void MakeAllControlsVisible(Control parentControl)        
         {
             foreach (Control control in parentControl.Controls)
             {
@@ -136,6 +149,282 @@ namespace MDMUI
                     MakeAllControlsVisible(control);
                 }
             }
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmUser.ModernLayout"))
+                {
+                    EnsureModernHeader();
+                    EnsureGridHostAndEmptyState();
+                    EnsureStatusStrip();
+
+                    // UiThemingBootstrapper 只对窗体执行一次；这里确保运行时新增控件也能吃到统一风格
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+
+                    UpdateUserListIndicators(txtSearch?.Text, dgvUsers?.Rows?.Count ?? 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化用户管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureModernHeader()
+        {
+            if (modernHeaderCard != null) return;
+
+            Panel oldToolPanel = toolPanel;
+            Panel oldSearchPanel = searchPanel;
+            Label oldSeparator = separatorLabel;
+
+            // 先把需要保留的输入框迁移出来，避免旧 Panel Dispose 时连带释放
+            try
+            {
+                if (txtSearch?.Parent != null)
+                {
+                    txtSearch.Parent.Controls.Remove(txtSearch);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 132
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            header.Controls.Add(layout);
+
+            ActionToolbar actionsToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+            ActionToolbar searchToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = "用户管理",
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 10, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(11f); } catch { }
+            actionsToolbar.LeftPanel.Controls.Add(title);
+
+            // 将原有按钮替换为 AppButton（仍复用原事件处理与可见性逻辑）
+            Button oldAdd = btnAdd;
+            Button oldEdit = btnEdit;
+            Button oldDelete = btnDelete;
+            Button oldRefresh = btnRefresh;
+            Button oldResetPwd = btnResetPwd;
+            Button oldSearch = btnSearch;
+
+            AppButton add = CreateAppButton(oldAdd?.Text ?? "添加", AppButtonVariant.Primary, BtnAdd_Click);
+            AppButton edit = CreateAppButton(oldEdit?.Text ?? "编辑", AppButtonVariant.Secondary, BtnEdit_Click);
+            AppButton delete = CreateAppButton(oldDelete?.Text ?? "删除", AppButtonVariant.Danger, BtnDelete_Click);
+            AppButton resetPwd = CreateAppButton(oldResetPwd?.Text ?? "重置密码", AppButtonVariant.Secondary, BtnResetPwd_Click);
+            AppButton refresh = CreateAppButton(oldRefresh?.Text ?? "刷新", AppButtonVariant.Secondary, BtnRefresh_Click);
+            AppButton search = CreateAppButton(oldSearch?.Text ?? "搜索", AppButtonVariant.Primary, BtnSearch_Click);
+
+            CopyButtonState(oldAdd, add);
+            CopyButtonState(oldEdit, edit);
+            CopyButtonState(oldDelete, delete);
+            CopyButtonState(oldResetPwd, resetPwd);
+            CopyButtonState(oldRefresh, refresh);
+            CopyButtonState(oldSearch, search);
+
+            btnAdd = add;
+            btnEdit = edit;
+            btnDelete = delete;
+            btnResetPwd = resetPwd;
+            btnRefresh = refresh;
+            btnSearch = search;
+
+            actionsToolbar.RightPanel.Controls.Add(add);
+            actionsToolbar.RightPanel.Controls.Add(edit);
+            actionsToolbar.RightPanel.Controls.Add(delete);
+            actionsToolbar.RightPanel.Controls.Add(resetPwd);
+            actionsToolbar.RightPanel.Controls.Add(refresh);
+
+            Label searchLabel = new Label
+            {
+                AutoSize = true,
+                Text = "搜索",
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                Margin = new Padding(0, 10, 8, 0)
+            };
+            searchToolbar.LeftPanel.Controls.Add(searchLabel);
+
+            if (txtSearch != null)
+            {
+                txtSearch.Width = Math.Max(200, txtSearch.Width);
+                txtSearch.Margin = new Padding(0, 8, 8, 0);
+                searchToolbar.LeftPanel.Controls.Add(txtSearch);
+            }
+
+            searchToolbar.RightPanel.Controls.Add(search);
+
+            layout.Controls.Add(actionsToolbar, 0, 0);
+            layout.Controls.Add(searchToolbar, 0, 1);
+
+            // 维持 Dock 计算顺序：Fill 控件需保持较低 z-order
+            Controls.Add(header);
+            header.BringToFront();
+            modernHeaderCard = header;
+
+            // 旧控件移除并释放（开闭原则：运行时替换，不动 Designer）
+            try { if (oldToolPanel != null) Controls.Remove(oldToolPanel); } catch { }
+            try { if (oldSearchPanel != null) Controls.Remove(oldSearchPanel); } catch { }
+            try { if (oldSeparator != null) Controls.Remove(oldSeparator); } catch { }
+
+            try { oldToolPanel?.Dispose(); } catch { }
+            try { oldSearchPanel?.Dispose(); } catch { }
+            try { oldSeparator?.Dispose(); } catch { }
+        }
+
+        private void EnsureGridHostAndEmptyState()
+        {
+            if (gridHostPanel != null) return;
+            if (dgvUsers == null) return;
+
+            int gridIndex = 0;
+            try { gridIndex = Controls.GetChildIndex(dgvUsers); } catch { }
+
+            try { Controls.Remove(dgvUsers); } catch { }
+
+            Panel host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+
+            dgvUsers.Dock = DockStyle.Fill;
+            host.Controls.Add(dgvUsers);
+
+            Label empty = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            try { empty.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+            host.Controls.Add(empty);
+            try { empty.BringToFront(); } catch { }
+
+            Controls.Add(host);
+            try { Controls.SetChildIndex(host, gridIndex); } catch { }
+
+            gridHostPanel = host;
+            emptyStateLabel = empty;
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStrip != null) return;
+
+            StatusStrip strip = new StatusStrip
+            {
+                Dock = DockStyle.Bottom,
+                SizingGrip = false
+            };
+
+            ToolStripStatusLabel label = new ToolStripStatusLabel { Text = "就绪" };
+            strip.Items.Add(label);
+
+            Controls.Add(strip);
+
+            statusStrip = strip;
+            statusLabel = label;
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            // 默认 AutoSize=true，FlowLayoutPanel 下表现更稳定
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyButtonState(Button source, Button target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+            try { target.TabIndex = source.TabIndex; } catch { }
+        }
+
+        private void UpdateUserListIndicators(string searchTerm, int count)
+        {
+            string normalized = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim();
+
+            if (statusLabel != null)
+            {
+                if (count <= 0)
+                {
+                    statusLabel.Text = string.IsNullOrWhiteSpace(normalized) ? "暂无用户数据" : $"未找到匹配用户：{normalized}";
+                }
+                else
+                {
+                    statusLabel.Text = string.IsNullOrWhiteSpace(normalized) ? $"共 {count} 条用户" : $"匹配 {count} 条用户";
+                }
+            }
+
+            if (emptyStateLabel != null)
+            {
+                if (count <= 0)
+                {
+                    emptyStateLabel.Text = string.IsNullOrWhiteSpace(normalized) ? "暂无用户数据" : "未找到匹配的用户";
+                    emptyStateLabel.Visible = true;
+                    try { emptyStateLabel.BringToFront(); } catch { }
+                }
+                else
+                {
+                    emptyStateLabel.Visible = false;
+                }
+            }
+        }
+
+        private void BringEmptyStateToFront()
+        {
+            try { emptyStateLabel?.BringToFront(); } catch { }
         }
 
         private void SetButtonVisibility()
@@ -205,14 +494,11 @@ namespace MDMUI
 
                 BindGrid(filteredUsers);
 
-                // Show message if search term is present but no results found
-                if (filteredUsers.Count == 0 && !string.IsNullOrWhiteSpace(searchTerm))
-                {
-                   MessageBox.Show("未找到匹配的用户。", "搜索结果", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
+                UpdateUserListIndicators(searchTerm, filteredUsers.Count);
             }
             catch (Exception ex)
             {
+                 AppLog.Error(ex, "筛选或绑定用户数据时出错");
                  MessageBox.Show("筛选或绑定用户数据时出错: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
