@@ -74,6 +74,7 @@
     <Compile Include="Controls\GlassPanel.cs" />
     <Compile Include="Controls\Atoms\AppButton.cs" />
     <Compile Include="Controls\Atoms\CardPanel.cs" />
+    <Compile Include="Controls\Molecules\ActionToolbar.cs" />
     <Compile Include="DAL\MenuDAL.cs" />
     <Compile Include="DAL\ProductDAL.cs" />
     <Compile Include="DAL\UserDAL.cs" />
@@ -324,6 +325,8 @@
     <Compile Include="Utility\AppLog.cs" />
     <Compile Include="Utility\AppTelemetry.cs" />
     <Compile Include="Utility\CrashReporter.cs" />
+    <Compile Include="Utility\GridStyler.cs" />
+    <Compile Include="Utility\IThemeSelfStyled.cs" />
     <Compile Include="Utility\AppPreferencesStore.cs" />
     <Compile Include="Utility\CommandUsageStore.cs" />
     <Compile Include="Utility\ThemeManager.cs" />

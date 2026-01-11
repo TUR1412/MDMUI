@@ -145,6 +145,8 @@ namespace MDMUI.Utility
 
             if (control is Button button)
             {
+                if (button is IThemeSelfStyled) return;
+
                 button.FlatStyle = FlatStyle.Flat;
                 button.FlatAppearance.BorderColor = palette.Border;
                 button.FlatAppearance.BorderSize = 1;
@@ -195,6 +197,7 @@ namespace MDMUI.Utility
                 grid.DefaultCellStyle.SelectionBackColor = palette.AccentSoft;
                 grid.DefaultCellStyle.SelectionForeColor = palette.TextPrimary;
 
+                GridStyler.Apply(grid);
                 TryEnableDoubleBuffer(grid);
             }
         }

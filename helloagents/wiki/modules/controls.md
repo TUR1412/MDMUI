@@ -4,7 +4,7 @@
 提供可复用的视觉控件，统一 UI 风格。
 
 ## 模块概述
-- **职责:** 玻璃拟态面板、可拖拽列表、原子控件（按钮/卡片容器）
+- **职责:** 玻璃拟态面板、可拖拽列表、Atomic Design 控件（Atoms/Molecules）
 - **状态:** ✅稳定
 - **最后更新:** 2026-01-11
 
@@ -23,6 +23,7 @@
 - GlassPanel
 - Controls.Atoms.AppButton
 - Controls.Atoms.CardPanel
+- Controls.Molecules.ActionToolbar
 
 ## 数据模型
 - 无

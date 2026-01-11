@@ -28,6 +28,8 @@
 
 ## API接口
 - ThemeManager.ApplyTo
+- GridStyler.Apply
+- IThemeSelfStyled
 - CommandUsageStore.RecordUse / TogglePin
 - AuditTrail.Log
 - DbConnectionHelper.GetConnectionString

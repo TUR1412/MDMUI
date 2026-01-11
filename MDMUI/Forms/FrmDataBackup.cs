@@ -5,6 +5,8 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MDMUI.BLL;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 using MDMUI.Model;
 using MDMUI.Utility;
 
@@ -17,9 +19,9 @@ namespace MDMUI
         private readonly SystemParameterService parameterService = new SystemParameterService();
 
         private TextBox txtBackupPath;
-        private Button btnBrowse;
-        private Button btnBackup;
-        private Button btnOpen;
+        private AppButton btnBrowse;
+        private AppButton btnBackup;
+        private AppButton btnOpen;
         private ListView backupList;
         private Label statusLabel;
         private int retentionDays = 7;
@@ -55,63 +57,18 @@ namespace MDMUI
             demoPanel.Controls.Clear();
             demoPanel.Dock = DockStyle.Fill;
             demoPanel.Padding = new Padding(16);
-            demoPanel.BackColor = ThemeManager.Palette.Surface;
+            demoPanel.BackColor = ThemeManager.Palette.Background;
+            demoPanel.BorderStyle = BorderStyle.None;
 
-            Panel toolbar = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 50
-            };
-
-            txtBackupPath = new TextBox
-            {
-                Width = 360,
-                Height = 28,
-                Location = new Point(0, 10),
-                ReadOnly = true
-            };
-
-            btnBrowse = new Button
-            {
-                Text = "选择目录",
-                Width = 90,
-                Height = 30,
-                Location = new Point(txtBackupPath.Right + 10, 8)
-            };
-            btnBrowse.Click += (s, e) => SelectBackupPath();
-
-            btnBackup = new Button
-            {
-                Text = "立即备份",
-                Width = 90,
-                Height = 30,
-                Location = new Point(btnBrowse.Right + 10, 8)
-            };
-            btnBackup.Click += async (s, e) => await RunBackupAsync();
-
-            btnOpen = new Button
-            {
-                Text = "打开目录",
-                Width = 90,
-                Height = 30,
-                Location = new Point(btnBackup.Right + 10, 8)
-            };
-            btnOpen.Click += (s, e) => OpenBackupDirectory();
-
-            toolbar.Controls.Add(txtBackupPath);
-            toolbar.Controls.Add(btnBrowse);
-            toolbar.Controls.Add(btnBackup);
-            toolbar.Controls.Add(btnOpen);
-
-            backupList = new ListView
+            CardPanel contentCard = new CardPanel
             {
                 Dock = DockStyle.Fill,
-                View = View.Details,
-                FullRowSelect = true
+                Padding = new Padding(12),
+                BackColor = ThemeManager.Palette.Surface
             };
-            backupList.Columns.Add("文件名", 320);
-            backupList.Columns.Add("大小", 100);
-            backupList.Columns.Add("时间", 160);
+
+            ActionToolbar toolbar = BuildToolbar();
+            backupList = BuildBackupList();
 
             statusLabel = new Label
             {
@@ -121,38 +78,158 @@ namespace MDMUI
                 ForeColor = ThemeManager.Palette.TextSecondary
             };
 
-            demoPanel.Controls.Add(backupList);
-            demoPanel.Controls.Add(statusLabel);
-            demoPanel.Controls.Add(toolbar);
+            contentCard.Controls.Add(backupList);
+            contentCard.Controls.Add(statusLabel);
+            contentCard.Controls.Add(toolbar);
+            demoPanel.Controls.Add(contentCard);
+        }
+
+        private ActionToolbar BuildToolbar()
+        {
+            ActionToolbar toolbar = new ActionToolbar
+            {
+                Dock = DockStyle.Top,
+                Height = 46,
+                Padding = new Padding(0, 6, 0, 10)
+            };
+
+            Label pathLabel = new Label
+            {
+                AutoSize = true,
+                Text = "目录：",
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                Padding = new Padding(0, 6, 0, 0),
+                Margin = new Padding(0)
+            };
+
+            txtBackupPath = new TextBox
+            {
+                Width = 420,
+                Height = 28,
+                Margin = new Padding(8, 0, 0, 0),
+                ReadOnly = true
+            };
+
+            btnBrowse = new AppButton
+            {
+                Text = "选择目录",
+                Variant = AppButtonVariant.Secondary,
+                MinimumSize = new Size(110, 32)
+            };
+            btnBrowse.Click += (s, e) => SelectBackupPath();
+
+            btnOpen = new AppButton
+            {
+                Text = "打开目录",
+                Variant = AppButtonVariant.Secondary,
+                MinimumSize = new Size(110, 32)
+            };
+            btnOpen.Click += (s, e) => OpenBackupDirectory();
+
+            btnBackup = new AppButton
+            {
+                Text = "立即备份",
+                Variant = AppButtonVariant.Primary,
+                MinimumSize = new Size(110, 32)
+            };
+            btnBackup.Click += async (s, e) => await RunBackupAsync();
+
+            toolbar.LeftPanel.Controls.Add(pathLabel);
+            toolbar.LeftPanel.Controls.Add(txtBackupPath);
+            toolbar.RightPanel.Controls.Add(btnBrowse);
+            toolbar.RightPanel.Controls.Add(btnOpen);
+            toolbar.RightPanel.Controls.Add(btnBackup);
+
+            return toolbar;
+        }
+
+        private ListView BuildBackupList()
+        {
+            ThemePalette palette = ThemeManager.Palette;
+
+            ListView list = new ListView
+            {
+                Dock = DockStyle.Fill,
+                View = View.Details,
+                FullRowSelect = true,
+                HideSelection = false,
+                BorderStyle = BorderStyle.None,
+                BackColor = palette.Surface,
+                ForeColor = palette.TextPrimary
+            };
+
+            list.Columns.Add("文件名", 340);
+            list.Columns.Add("大小", 110);
+            list.Columns.Add("时间", 170);
+
+            list.DoubleClick += (s, e) =>
+            {
+                try
+                {
+                    if (list.SelectedItems.Count != 1) return;
+                    string fileName = list.SelectedItems[0].Text;
+                    string path = Path.Combine(txtBackupPath.Text, fileName);
+                    if (File.Exists(path))
+                    {
+                        System.Diagnostics.Process.Start(path);
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+            };
+
+            return list;
         }
 
         private void LoadDefaults()
         {
-            retentionDays = Math.Max(1, parameterService.GetInt("Backup.RetentionDays", 7));
-            string configuredPath = parameterService.GetString("Backup.Directory", null);
-            if (string.IsNullOrWhiteSpace(configuredPath))
+            using (AppTelemetry.Measure("Backup.LoadDefaults"))
             {
-                configuredPath = backupService.GetDefaultBackupDirectory();
-            }
+                retentionDays = Math.Max(1, parameterService.GetInt("Backup.RetentionDays", 7));
+                string configuredPath = parameterService.GetString("Backup.Directory", null);
+                if (string.IsNullOrWhiteSpace(configuredPath))
+                {
+                    configuredPath = backupService.GetDefaultBackupDirectory();
+                }
 
-            txtBackupPath.Text = configuredPath;
+                txtBackupPath.Text = configuredPath;
+            }
         }
 
         private void RefreshBackupList()
         {
             if (backupList == null) return;
-            backupList.Items.Clear();
 
-            List<FileInfo> files = backupService.GetBackupFiles(txtBackupPath.Text);
-            foreach (FileInfo file in files)
+            try
             {
-                ListViewItem item = new ListViewItem(file.Name);
-                item.SubItems.Add((file.Length / 1024.0 / 1024.0).ToString("F2") + " MB");
-                item.SubItems.Add(file.LastWriteTime.ToString("yyyy-MM-dd HH:mm"));
-                backupList.Items.Add(item);
-            }
+                using (AppTelemetry.Measure("Backup.RefreshList"))
+                {
+                    backupList.BeginUpdate();
+                    backupList.Items.Clear();
 
-            UpdateStatus($"备份目录内共 {files.Count} 个文件，保留 {retentionDays} 天");
+                    List<FileInfo> files = backupService.GetBackupFiles(txtBackupPath.Text);
+                    foreach (FileInfo file in files)
+                    {
+                        ListViewItem item = new ListViewItem(file.Name);
+                        item.SubItems.Add((file.Length / 1024.0 / 1024.0).ToString("F2") + " MB");
+                        item.SubItems.Add(file.LastWriteTime.ToString("yyyy-MM-dd HH:mm"));
+                        backupList.Items.Add(item);
+                    }
+
+                    backupList.EndUpdate();
+
+                    UpdateStatus($"备份目录内共 {files.Count} 个文件，保留 {retentionDays} 天");
+                }
+            }
+            catch (Exception ex)
+            {
+                try { backupList.EndUpdate(); } catch { }
+                AppLog.Error(ex, "刷新备份列表失败");
+                UpdateStatus("刷新失败: " + ex.Message);
+            }
         }
 
         private void SelectBackupPath()
@@ -174,9 +251,25 @@ namespace MDMUI
             if (btnBackup == null) return;
 
             btnBackup.Enabled = false;
+            if (btnBrowse != null) btnBrowse.Enabled = false;
+            if (btnOpen != null) btnOpen.Enabled = false;
+
             UpdateStatus("正在执行备份，请稍候...");
 
-            BackupResult result = await Task.Run(() => backupService.CreateBackup(txtBackupPath.Text, retentionDays));
+            BackupResult result;
+            try
+            {
+                using (AppTelemetry.Measure("Backup.Run"))
+                {
+                    result = await Task.Run(() => backupService.CreateBackup(txtBackupPath.Text, retentionDays));
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error(ex, "备份执行异常");
+                result = new BackupResult { Success = false, Message = ex.Message };
+            }
+
             if (result.Success)
             {
                 AuditTrail.Log(CurrentUser, "Backup", "System", $"备份完成: {Path.GetFileName(result.FilePath)}");
@@ -190,6 +283,8 @@ namespace MDMUI
 
             RefreshBackupList();
             btnBackup.Enabled = true;
+            if (btnBrowse != null) btnBrowse.Enabled = true;
+            if (btnOpen != null) btnOpen.Enabled = true;
         }
 
         private void OpenBackupDirectory()

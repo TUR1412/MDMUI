@@ -2,10 +2,10 @@
 
 ```text
  __  __ ____   __  __ _   _ ___
-|  \\/  |  _ \\ |  \\/  | | | |_ _|
-| |\\/| | | | || |\\/| | | | || |
+|  \/  |  _ \ |  \/  | | | |_ _|
+| |\/| | | | || |\/| | | | || |
 | |  | | |_| || |  | | |_| || |
-|_|  |_|____/ |_|  |_|\\___/|___|
+|_|  |_|____/ |_|  |_|\___/|___|
 WinForms · .NET Framework 4.8 · SQL Server LocalDB
 ```
 
@@ -14,26 +14,46 @@ WinForms · .NET Framework 4.8 · SQL Server LocalDB
 ![dotnet](https://img.shields.io/badge/.NET%20Framework-4.8-512BD4?logo=.net&logoColor=white)
 ![ui](https://img.shields.io/badge/UI-WinForms-0A0A0A?logo=windows11&logoColor=white)
 
-> 中文：一个可直接运行的 WinForms 管理端示例，强调现代视觉 + 清晰分层 + 可配置策略。
-> English: A runnable WinForms management demo focusing on modern visuals, clean layering, and configurable policies.
+MDMUI 是一个可直接运行的 WinForms 管理端示例项目，强调：
+- 清晰分层（UI / BLL / DAL）
+- 可配置策略（安全、备份、主题等）
+- 可观测性与可诊断性（日志、崩溃报告、性能埋点）
+- 增量式 UI 设计系统（Atomic Design：Atoms / Molecules）
+
+> 说明：本项目为 WinForms 桌面应用，Web 领域的 Lighthouse 评分不适用；性能与体验目标通过启动/关键路径埋点、控件双缓冲与交互优化来衡量与迭代。
 
 ---
 
-## ✨ 功能亮点 | Highlights
+## 目录
 
-- 🔐 登录安全：失败计数 + 锁定策略 + 密码策略
-- ⚙️ 系统参数中心：安全/备份/UI 均可配置
-- 🗃️ 数据备份中心：一键备份 + 保留策略
-- ⌨️ 命令面板智能排序：最近/常用优先，支持 Ctrl+P 固定
-- 🧊 未来感主题系统：统一色彩、字体与控件风格
-- 🧯 全局异常兜底：崩溃报告窗 + 复制详情 + 日志定位
-- 📝 文件日志：默认写入 `%LOCALAPPDATA%\\MDMUI\\logs`，支持轮转与保留策略
-- ✅ 单元测试：MSTest + CI 测试步骤
-- 🧾 操作审计：关键操作写入 SystemLog
+- [功能与模块](#功能与模块)
+- [架构概览](#架构概览)
+- [快速开始](#快速开始)
+- [配置与参数](#配置与参数)
+- [日志与诊断](#日志与诊断)
+- [UI 设计系统（Atomic Design）](#ui-设计系统atomic-design)
+- [CI](#ci)
+- [English](#english)
 
 ---
 
-## 🧭 架构 | Architecture
+## 功能与模块
+
+- 登录安全：失败计数、锁定策略、密码策略、权限校验
+- 系统参数中心：集中管理安全/备份/主题策略
+- 数据备份中心：一键备份、保留策略自动清理旧文件
+- 命令面板（Command Palette）：最近/常用优先，支持固定常用功能
+- 统一主题系统：颜色、字体、控件风格统一应用
+- 崩溃兜底：未处理异常弹出崩溃报告窗，可复制详情/打开日志目录
+- 日志与埋点：
+  - AppLog：落盘日志（按天 + 大小轮转 + 保留策略）
+  - AppTelemetry：轻量性能埋点（关键路径耗时记录）
+  - AuditTrail：关键操作审计（SystemLog）
+- 单元测试：MSTest + GitHub Actions 中执行 `dotnet test`
+
+---
+
+## 架构概览
 
 ```mermaid
 flowchart LR
@@ -41,20 +61,26 @@ flowchart LR
   BLL -->|SQL| DAL[Data Access Layer]
   DAL --> DB[(SQL Server LocalDB)]
 
-  UI --> Theme[ThemeManager & Controls]
+  UI --> Theme[ThemeManager / ModernTheme / Controls]
+  UI --> Obs[AppLog / CrashReporter / AppTelemetry]
 ```
+
+设计原则：
+- 业务逻辑尽量收敛在 BLL / DAL，UI 负责交互与状态呈现。
+- 增量升级遵循开闭原则（Open/Closed Principle）：尽量以新增模块/控件扩展能力，仅在必要接入点做小改动。
 
 ---
 
-## 🚀 快速开始 | Quick Start
+## 快速开始
 
-### 1) 环境要求 | Requirements
+### 环境要求
+
 - Windows 10/11
 - .NET Framework 4.8（运行时）
-- Visual Studio 2022（.NET 桌面开发）或 .NET SDK 8/9
+- Visual Studio 2022（.NET 桌面开发工作负载）
 - SQL Server LocalDB（默认实例 `MSSQLLocalDB`）
 
-### 2) 构建 | Build
+### 构建
 
 ```powershell
 dotnet build .\MDMUI\MDMUI.sln -c Release
@@ -66,92 +92,119 @@ dotnet build .\MDMUI\MDMUI.sln -c Release
 pwsh -File .\scripts\build.ps1 -Configuration Release
 ```
 
-### 3) 测试 | Test
+### 测试
 
 ```powershell
 pwsh -File .\scripts\test.ps1 -Configuration Release
 ```
 
-### 4) 数据库初始化 | Database
-- 默认连接字符串在 `MDMUI/App.config` -> `DefaultConnection`
-- 可用环境变量覆盖：
+### 数据库
+
+- 默认连接字符串：`MDMUI/App.config` -> `DefaultConnection`
+- 可通过环境变量覆盖：
 
 ```powershell
 $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catalog=UserDB;Integrated Security=True"
 ```
 
-应用启动会自动创建最小可运行结构（不覆盖已有数据）。如需完整演示数据，可执行：  
+应用启动会进行最小可运行初始化（不会覆盖已有数据）。如需完整演示数据，可执行：
 - `MDMUI/dbo.sql`
 
-### 5) 默认账号 | Default Account
+### 默认账号
+
 - 用户名：`admin`
 - 密码：`1`
 
 ---
 
-## ⚙️ 系统参数 | System Parameters
+## 配置与参数
 
-参数页面支持统一管理安全/备份/主题策略，例如：
+系统参数页面支持统一管理策略，例如：
 - `Security.MaxFailedLogin`
 - `Security.LockoutMinutes`
 - `Backup.RetentionDays`
+- `Backup.Directory`
 - `UI.AccentColor`
 
 ---
 
-## 🗃️ 数据备份 | Backup
+## 日志与诊断
 
-在“数据备份中心”中选择目录并执行备份，支持保留策略自动清理旧文件。
+### AppLog（落盘日志）
 
----
+- 默认日志目录：`%LOCALAPPDATA%\MDMUI\logs`
+- 默认日志文件：`mdmui-YYYYMMDD.log`（按天）
+- 大文件轮转：单文件超过阈值会自动轮转到 `mdmui-YYYYMMDD-HHmmss-PID.log`
 
-## ⌨️ Command Palette
+支持覆盖（环境变量优先于 `App.config`）：
+- `MDMUI_LOG_DIR` / `MDMUI.LogDirectory`
+- `MDMUI_LOG_MAX_MB` / `MDMUI.LogMaxMB`
+- `MDMUI_LOG_RETENTION_DAYS` / `MDMUI.LogRetentionDays`
+- `MDMUI_LOG_DISABLED` / `MDMUI.LogDisabled`
 
-- `Ctrl + K` 打开命令面板
-- 支持空格分词检索
-- `Ctrl + P` 固定/取消固定常用功能
+### CrashReporter（未处理异常兜底）
 
----
+未处理异常会弹出崩溃报告窗，支持：
+- 复制异常详情
+- 打开日志目录（便于定位问题）
 
-## 📂 目录结构 | Structure
+### AppTelemetry（轻量性能埋点）
 
-- `MDMUI/Forms/`：WinForms 界面
-- `MDMUI/Controls/`：自定义控件
-- `MDMUI/BLL/`：业务逻辑层
-- `MDMUI/DAL/`：数据访问层
-- `MDMUI/Model/`：模型
-- `MDMUI/Utility/`：主题/安全/工具
-- `scripts/`：构建与清理脚本
-
----
-
-## 🔐 安全说明 | Security
-
-- 登录失败触发锁定策略，可在系统参数中调整阈值与时长
-- 密码策略可配置（长度/数字/大小写/特殊字符）
+关键路径采用 `using (AppTelemetry.Measure("..."))` 记录耗时，并写入日志（前缀 `[perf]`）。
 
 ---
 
-## 🧰 日志与诊断 | Logging & Diagnostics
+## UI 设计系统（Atomic Design）
 
-- 默认日志目录：`%LOCALAPPDATA%\\MDMUI\\logs`
-- 默认日志文件：`mdmui-YYYYMMDD.log`（按天），并对单文件大小做轮转
-- 应用内入口：`系统设置 -> 打开日志目录`（需要 system:view 权限或超级管理员）
-- 配置覆盖（环境变量优先于 App.config）：
-  - `MDMUI_LOG_DIR` / `MDMUI.LogDirectory`
-  - `MDMUI_LOG_MAX_MB` / `MDMUI.LogMaxMB`
-  - `MDMUI_LOG_RETENTION_DAYS` / `MDMUI.LogRetentionDays`
-  - `MDMUI_LOG_DISABLED` / `MDMUI.LogDisabled`
-- 未处理异常会弹出崩溃报告窗（可复制详情/打开日志目录），便于定位问题
+项目以增量方式引入 Atomic Design：
 
-English:
-- Default log dir: `%LOCALAPPDATA%\\MDMUI\\logs` (daily file `mdmui-YYYYMMDD.log`, with size-based rotation)
-- In-app shortcut: `System Settings -> Open Log Folder` (requires system:view or Super Admin)
+- Atoms（原子）
+  - `MDMUI.Controls.Atoms.AppButton`：语义化按钮（Primary / Secondary / Danger）
+  - `MDMUI.Controls.Atoms.CardPanel`：卡片容器（圆角、边框、抗锯齿）
+- Molecules（分子）
+  - `MDMUI.Controls.Molecules.ActionToolbar`：左侧输入区 + 右侧操作区的通用工具栏布局
+
+主题与交互：
+- `ThemeManager.ApplyTo(control)`：统一应用颜色/字体/控件风格
+- `ModernTheme.EnableMicroInteractions(control)`：按钮 hover/press 的轻量动效
+- `IThemeSelfStyled`：自定义控件可实现该接口以避免被 ThemeManager 覆盖关键样式（遵循开闭原则）
+
+---
+
+## CI
+
+GitHub Actions 工作流：`.github/workflows/build.yml`
+
+- `msbuild /restore` 构建 `MDMUI.sln`
+- `dotnet test` 运行 `MDMUI.Tests`
+
+---
+
+## English
+
+MDMUI is a runnable WinForms management demo focusing on:
+- Clean layering (UI / BLL / DAL)
+- Configurable policies (security, backup, theme)
+- Observability (file logging, crash reporting, lightweight performance telemetry)
+- Incremental UI design system (Atomic Design: Atoms / Molecules)
+
+Note: This is a WinForms desktop app; Lighthouse (web) scores do not apply. Performance targets are tracked via internal telemetry logs and UI responsiveness improvements.
+
+### Build
+
+```powershell
+dotnet build .\MDMUI\MDMUI.sln -c Release
+```
+
+### Test
+
+```powershell
+pwsh -File .\scripts\test.ps1 -Configuration Release
+```
+
+### Logging
+
+- Default log dir: `%LOCALAPPDATA%\MDMUI\logs`
+- Daily log file: `mdmui-YYYYMMDD.log` (with size-based rotation)
 - Overrides: environment variables > `App.config` (`MDMUI_LOG_DIR`, `MDMUI_LOG_MAX_MB`, `MDMUI_LOG_RETENTION_DAYS`, `MDMUI_LOG_DISABLED`)
-- Unhandled exceptions show a crash report dialog (copy details / open logs)
 
----
-
-## 🌐 English Summary
-
-MDMUI is a WinForms management demo with modern UI, a clear BLL/DAL split, configurable security policies, a backup center, and a smart command palette. It targets LocalDB for a zero-setup experience while keeping logs and parameter management consistent.

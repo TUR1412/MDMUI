@@ -12,7 +12,7 @@ namespace MDMUI.Controls.Atoms
         Danger = 2
     }
 
-    public class AppButton : Button
+    public class AppButton : Button, IThemeSelfStyled
     {
         private AppButtonVariant variant = AppButtonVariant.Primary;
 
@@ -34,6 +34,7 @@ namespace MDMUI.Controls.Atoms
             AutoSize = true;
             Padding = new Padding(10, 6, 10, 6);
             Margin = new Padding(8, 0, 0, 0);
+            Cursor = Cursors.Hand;
 
             FlatAppearance.BorderSize = 1;
             FlatAppearance.BorderColor = ThemeManager.Palette.Border;
@@ -73,4 +74,3 @@ namespace MDMUI.Controls.Atoms
         }
     }
 }
-
