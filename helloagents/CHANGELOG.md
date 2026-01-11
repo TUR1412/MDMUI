@@ -12,6 +12,7 @@
 - GridStyler：统一 DataGridView 视觉规范（表头/行高/交替行/字体）
 - IThemeSelfStyled：主题系统的“自绘控件自管理”标记接口（避免覆盖关键样式）
 - ActionToolbar：Atomic Design Molecule（输入区 + 操作区布局）
+- UiThemingBootstrapper：全局自动应用主题与微交互（避免逐窗体遗漏）
 - MSTest 单元测试工程 `MDMUI.Tests` 与 `scripts/test.ps1`
 - 系统设置菜单新增“打开日志目录”快捷入口
 

@@ -32,7 +32,10 @@ namespace MDMUI
                     }
 
                     Application.EnableVisualStyles();
-                    Application.SetCompatibleTextRenderingDefault(false);
+                    Application.SetCompatibleTextRenderingDefault(false);       
+
+                    // 全局安装主题/微交互：避免遗漏（开闭原则：无需逐个窗体改造）
+                    UiThemingBootstrapper.Install();
 
                     AppLog.Info($"应用程序启动... Version={Application.ProductVersion}");
 
@@ -88,4 +91,3 @@ namespace MDMUI
         }
     }
 }
-

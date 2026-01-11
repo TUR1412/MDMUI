@@ -30,6 +30,7 @@
 - ThemeManager.ApplyTo
 - GridStyler.Apply
 - IThemeSelfStyled
+- UiThemingBootstrapper.Install
 - CommandUsageStore.RecordUse / TogglePin
 - AuditTrail.Log
 - DbConnectionHelper.GetConnectionString

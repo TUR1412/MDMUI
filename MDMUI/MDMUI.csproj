@@ -336,6 +336,7 @@
     <Compile Include="Utility\SqlDataReaderExtensions.cs" />
     <Compile Include="Utility\CommonHelper.cs" />
     <Compile Include="Utility\ModernTheme.cs" />
+    <Compile Include="Utility\UiThemingBootstrapper.cs" />
     <Compile Include="Utility\ProcessSequenceOptimizer.cs" />
     <Compile Include="Utility\StringHelper.cs" />
     <Compile Include="Utility\WindowBackdrop.cs" />
