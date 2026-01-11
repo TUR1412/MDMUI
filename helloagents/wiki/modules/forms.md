@@ -86,6 +86,16 @@
 - 无数据/无匹配结果时使用空态提示与状态栏文本
 - 加载列表使用 `AppTelemetry.Measure("factory.load_list")` 记录耗时
 
+### 需求: 产品管理列表体验升级
+**模块:** Forms
+产品管理页面以运行时组合方式引入 Atomic Design（CardPanel + ActionToolbar + AppButton），并提供列表空态/状态栏信息；列表加载与搜索路径补充性能埋点与异常日志（遵循开闭原则，不修改 Designer 结构）。
+
+#### 场景: 列表浏览/搜索
+- 工具栏与搜索区统一为卡片工具栏（操作区 + 搜索区）
+- 无数据/无匹配结果时使用空态提示与状态栏文本
+- 加载列表使用 `AppTelemetry.Measure("product.load_list")` 记录耗时
+- 搜索使用 `AppTelemetry.Measure("product.search")` 记录耗时
+
 ### 需求: 文件日志查看器
 **模块:** Forms
 提供应用内“诊断日志”的可视化查看能力，支持过滤、复制与外部打开，降低排障门槛。

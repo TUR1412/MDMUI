@@ -13,6 +13,8 @@ using MDMUI.DAL;
 using MDMUI.Model;
 using MDMUI.Utility;
 using System.Data.SqlClient;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 
 namespace MDMUI
 {
@@ -20,6 +22,12 @@ namespace MDMUI
     {
         private User CurrentUser;
         private DataTable productTable;
+
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: do not rewrite Designer)
+        private bool modernLayoutInitialized;
+        private CardPanel modernHeaderCard;
+        private Panel gridHostPanel;
+        private Label emptyStateLabel;
         
         // 构造函数
         public FrmProduct(User user)
@@ -35,7 +43,332 @@ namespace MDMUI
         private void FrmProduct_Load(object sender, EventArgs e)
         {
             InitUI();
+            InitializeModernLayout();
             LoadProductData();
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmProduct.ModernLayout"))
+                {
+                    EnsureModernHeader();
+                    EnsureGridHostAndEmptyState();
+                    EnsureStatusStrip();
+
+                    try { GridStyler.Apply(dgvProduct); } catch { }
+                    TryEnableGridDoubleBuffering(dgvProduct);
+
+                    // UiThemingBootstrapper 只对窗体执行一次；这里确保运行时新
+                    // 增控件也能吃到统一风格
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+
+                    UpdateProductListIndicators(productTable?.Rows?.Count ?? 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化产品管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureModernHeader()
+        {
+            if (modernHeaderCard != null) return;
+
+            ToolStrip oldToolStrip = toolStrip1;
+            Panel oldSearchPanel = searchPanel;
+
+            ToolStripButton oldAdd = btnAdd;
+            ToolStripButton oldEdit = btnEdit;
+            ToolStripButton oldDelete = btnDelete;
+            ToolStripButton oldRefresh = btnRefresh;
+            ToolStripButton oldExport = btnExport;
+
+            Button oldSearch = btnSearch;
+            Button oldReset = btnReset;
+
+            // 先把需要保留的输入控件迁移出来，避免旧 Panel Dispose 时连带释放
+            try
+            {
+                if (txtProductCode?.Parent != null) txtProductCode.Parent.Controls.Remove(txtProductCode);
+                if (txtProductName?.Parent != null) txtProductName.Parent.Controls.Remove(txtProductName);
+                if (cmbCategory?.Parent != null) cmbCategory.Parent.Controls.Remove(cmbCategory);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 140
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+            header.Controls.Add(layout);
+
+            ActionToolbar actionsToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+            ActionToolbar searchToolbar = new ActionToolbar { Dock = DockStyle.Fill, Height = 54 };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = string.IsNullOrWhiteSpace(Text) ? "产品信息管理" : Text,
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 10, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(11f); } catch { }
+            actionsToolbar.LeftPanel.Controls.Add(title);
+
+            AppButton add = CreateAppButton("新增", AppButtonVariant.Primary, BtnAdd_Click, name: "btnAdd");
+            AppButton edit = CreateAppButton("编辑", AppButtonVariant.Secondary, BtnEdit_Click, name: "btnEdit");
+            AppButton delete = CreateAppButton("删除", AppButtonVariant.Danger, BtnDelete_Click, name: "btnDelete");
+            AppButton refresh = CreateAppButton("刷新", AppButtonVariant.Secondary, BtnRefresh_Click, name: "btnRefresh");
+            AppButton export = CreateAppButton("导出", AppButtonVariant.Secondary, BtnExport_Click, name: "btnExport");
+
+            CopyToolStripState(oldAdd, add);
+            CopyToolStripState(oldEdit, edit);
+            CopyToolStripState(oldDelete, delete);
+            CopyToolStripState(oldRefresh, refresh);
+            CopyToolStripState(oldExport, export);
+
+            actionsToolbar.RightPanel.Controls.Add(add);
+            actionsToolbar.RightPanel.Controls.Add(edit);
+            actionsToolbar.RightPanel.Controls.Add(delete);
+            actionsToolbar.RightPanel.Controls.Add(refresh);
+            actionsToolbar.RightPanel.Controls.Add(export);
+
+            Label codeLabel = CreateFieldLabel("产品编码");
+            Label nameLabel = CreateFieldLabel("产品名称");
+            Label categoryLabel = CreateFieldLabel("类别");
+
+            searchToolbar.LeftPanel.Controls.Add(codeLabel);
+            if (txtProductCode != null)
+            {
+                txtProductCode.Width = Math.Max(120, txtProductCode.Width);
+                txtProductCode.Margin = new Padding(0, 8, 10, 0);
+                searchToolbar.LeftPanel.Controls.Add(txtProductCode);
+            }
+
+            searchToolbar.LeftPanel.Controls.Add(nameLabel);
+            if (txtProductName != null)
+            {
+                txtProductName.Width = Math.Max(160, txtProductName.Width);
+                txtProductName.Margin = new Padding(0, 8, 10, 0);
+                searchToolbar.LeftPanel.Controls.Add(txtProductName);
+            }
+
+            searchToolbar.LeftPanel.Controls.Add(categoryLabel);
+            if (cmbCategory != null)
+            {
+                cmbCategory.Width = Math.Max(140, cmbCategory.Width);
+                cmbCategory.Margin = new Padding(0, 8, 10, 0);
+                searchToolbar.LeftPanel.Controls.Add(cmbCategory);
+            }
+
+            AppButton reset = CreateAppButton("重置", AppButtonVariant.Secondary, BtnReset_Click, name: "btnReset");
+            AppButton search = CreateAppButton("搜索", AppButtonVariant.Primary, BtnSearch_Click, name: "btnSearch");
+
+            CopyButtonState(oldReset, reset);
+            CopyButtonState(oldSearch, search);
+
+            btnReset = reset;
+            btnSearch = search;
+
+            searchToolbar.RightPanel.Controls.Add(reset);
+            searchToolbar.RightPanel.Controls.Add(search);
+
+            try { AcceptButton = search; } catch { }
+
+            layout.Controls.Add(actionsToolbar, 0, 0);
+            layout.Controls.Add(searchToolbar, 0, 1);
+
+            Controls.Add(header);
+            header.BringToFront();
+            modernHeaderCard = header;
+
+            // 旧控件移除并释放（开闭原则：运行时替换，不动 Designer）
+            try { if (oldToolStrip != null) Controls.Remove(oldToolStrip); } catch { }
+            try { if (oldSearchPanel != null) Controls.Remove(oldSearchPanel); } catch { }
+
+            try { oldToolStrip?.Dispose(); } catch { }
+            try { oldSearchPanel?.Dispose(); } catch { }
+
+            toolStrip1 = null;
+            searchPanel = null;
+
+            // 避免后续误用已释放按钮引用（ToolStripButton）
+            btnAdd = null;
+            btnEdit = null;
+            btnDelete = null;
+            btnRefresh = null;
+            btnExport = null;
+        }
+
+        private void EnsureGridHostAndEmptyState()
+        {
+            if (gridHostPanel != null) return;
+            if (dgvProduct == null) return;
+
+            int gridIndex = 0;
+            try { gridIndex = Controls.GetChildIndex(dgvProduct); } catch { }
+
+            try { Controls.Remove(dgvProduct); } catch { }
+
+            Panel host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+
+            dgvProduct.Dock = DockStyle.Fill;
+            dgvProduct.BorderStyle = BorderStyle.None;
+            host.Controls.Add(dgvProduct);
+
+            Label empty = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            try { empty.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+            host.Controls.Add(empty);
+            try { empty.BringToFront(); } catch { }
+
+            Controls.Add(host);
+            try { Controls.SetChildIndex(host, gridIndex); } catch { }
+
+            gridHostPanel = host;
+            emptyStateLabel = empty;
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStrip1 == null) return;
+            try { statusStrip1.SizingGrip = false; } catch { }
+        }
+
+        private static Label CreateFieldLabel(string text)
+        {
+            return new Label
+            {
+                AutoSize = true,
+                Text = text,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                Margin = new Padding(0, 10, 8, 0)
+            };
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick, string name)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                button.Name = name.Trim();
+            }
+
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyButtonState(Button source, Button target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+            try { target.TabIndex = source.TabIndex; } catch { }
+        }
+
+        private static void CopyToolStripState(ToolStripItem source, Control target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+        }
+
+        private static void TryEnableGridDoubleBuffering(DataGridView grid)
+        {
+            if (grid == null) return;
+
+            try
+            {
+                typeof(DataGridView).GetProperty(
+                        "DoubleBuffered",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?.SetValue(grid, true, null);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private void UpdateProductListIndicators(int count)
+        {
+            bool hasFilter =
+                !string.IsNullOrWhiteSpace(txtProductCode?.Text) ||
+                !string.IsNullOrWhiteSpace(txtProductName?.Text) ||
+                !string.IsNullOrWhiteSpace(cmbCategory?.Text);
+
+            if (emptyStateLabel != null)
+            {
+                if (count <= 0)
+                {
+                    emptyStateLabel.Text = hasFilter ? "未找到匹配的产品" : "暂无产品数据";
+                    emptyStateLabel.Visible = true;
+                    try { emptyStateLabel.BringToFront(); } catch { }
+                }
+                else
+                {
+                    emptyStateLabel.Visible = false;
+                }
+            }
+
+            if (count <= 0)
+            {
+                UpdateStatus(hasFilter ? "未找到匹配的产品" : "暂无产品数据");
+            }
+            else
+            {
+                UpdateStatus($"共 {count} 条产品记录");
+            }
         }
         
         // 初始化界面
@@ -80,10 +413,12 @@ namespace MDMUI
         {
             try
             {
-                // 使用ProductBLL从数据库获取真实产品数据
+                using (AppTelemetry.Measure("product.load_list"))
+                {
+                    // 使用 ProductBLL 从数据库获取真实产品数据
                 ProductBLL productBLL = new ProductBLL();
                 productTable = productBLL.GetAllProducts();
-                Console.WriteLine($"成功获取产品数据，共 {productTable.Rows.Count} 条记录");
+                AppLog.Info($"成功获取产品数据，共 {productTable.Rows.Count} 条记录");
                 
                 // 绑定数据
                 if (this.dgvProduct != null)
@@ -176,13 +511,15 @@ namespace MDMUI
                 // 加载产品类别数据到下拉框
                 LoadCategoryComboBox();
                 
-                // 更新状态栏
-                UpdateStatus($"共加载 {productTable.Rows.Count} 条产品记录");
+                // 更新状态栏 / 空态
+                UpdateProductListIndicators(productTable?.Rows?.Count ?? 0);
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"加载产品数据失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                MainForm.LogHelper.Log($"加载产品数据失败: {ex.Message}");
+                AppLog.Error(ex, "加载产品数据失败");
+                UpdateProductListIndicators(0);
             }
         }
         
@@ -221,7 +558,7 @@ namespace MDMUI
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"加载产品类别数据失败: {ex.Message}");
+                AppLog.Error(ex, "加载产品类别数据失败");
             }
         }
         
@@ -406,48 +743,52 @@ namespace MDMUI
         {
             try
             {
-                // 获取搜索条件
-                string productName = this.txtProductName?.Text.Trim() ?? ""; // 直接访问
-                string productCode = this.txtProductCode?.Text.Trim() ?? ""; // 直接访问
-                string categoryName = this.cmbCategory?.SelectedItem?.ToString() ?? ""; // 直接访问
-
-                // 从数据库中搜索产品
-                ProductBLL productBLL = new ProductBLL();
-                string categoryId = null;
-                
-                // 如果选择了类别，获取类别ID
-                if (!string.IsNullOrEmpty(categoryName))
+                using (AppTelemetry.Measure("product.search"))
                 {
-                    string connectionString = DbConnectionHelper.GetConnectionString();
-                    using (SqlConnection conn = new SqlConnection(connectionString))
+                    // 获取搜索条件
+                    string productName = this.txtProductName?.Text.Trim() ?? ""; // 直接访问
+                    string productCode = this.txtProductCode?.Text.Trim() ?? ""; // 直接访问
+                    string categoryName = this.cmbCategory?.SelectedItem?.ToString() ?? ""; // 直接访问
+
+                    // 从数据库中搜索产品
+                    ProductBLL productBLL = new ProductBLL();
+                    string categoryId = null;
+
+                    // 如果选择了类别，获取类别ID
+                    if (!string.IsNullOrEmpty(categoryName))
                     {
-                        conn.Open();
-                        string sql = "SELECT CategoryId FROM ProductCategory WHERE CategoryName = @CategoryName";
-                        using (SqlCommand cmd = new SqlCommand(sql, conn))
+                        string connectionString = DbConnectionHelper.GetConnectionString();
+                        using (SqlConnection conn = new SqlConnection(connectionString))
                         {
-                            cmd.Parameters.AddWithValue("@CategoryName", categoryName);
-                            object result = cmd.ExecuteScalar();
-                            categoryId = result == DBNull.Value ? null : result?.ToString();
+                            conn.Open();
+                            string sql = "SELECT CategoryId FROM ProductCategory WHERE CategoryName = @CategoryName";
+                            using (SqlCommand cmd = new SqlCommand(sql, conn))
+                            {
+                                cmd.Parameters.AddWithValue("@CategoryName", categoryName);
+                                object result = cmd.ExecuteScalar();
+                                categoryId = result == DBNull.Value ? null : result?.ToString();
+                            }
                         }
                     }
-                }
 
-                // 执行搜索
-                productTable = productBLL.SearchProducts(
-                    !string.IsNullOrEmpty(productName) ? productName : null,
-                    !string.IsNullOrEmpty(productCode) ? productCode : null,
-                    categoryId
-                );
-                
-                // 更新数据绑定
-                this.dgvProduct.DataSource = productTable;
-                
-                UpdateStatus($"共找到 {productTable.Rows.Count} 条产品记录");
+                    // 执行搜索
+                    productTable = productBLL.SearchProducts(
+                        !string.IsNullOrEmpty(productName) ? productName : null,
+                        !string.IsNullOrEmpty(productCode) ? productCode : null,
+                        categoryId
+                    );
+
+                    // 更新数据绑定
+                    this.dgvProduct.DataSource = productTable;
+
+                    UpdateProductListIndicators(productTable?.Rows?.Count ?? 0);
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"搜索失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Console.WriteLine($"搜索失败: {ex.Message}");
+                AppLog.Error(ex, "搜索失败");
+                UpdateProductListIndicators(0);
             }
         }
         

@@ -31,6 +31,7 @@
 - 用户管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏提示并移除无结果弹窗
 - 区域管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏提示并补充埋点
 - 工厂管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏与加载埋点，并将加载异常写入 AppLog
+- 产品管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏与搜索埋点，并统一按钮/标签文本避免乱码
 - 区域管理：运行时替换旧控件后清理已释放引用，降低后续误用风险
 
 ## [1.1.0] - 2026-01-11
