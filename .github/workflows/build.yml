@@ -18,10 +18,14 @@ jobs:
       - name: Build (Release)
         shell: pwsh
         run: |
-          msbuild "MDMUI/MDMUI.sln" /t:Build /p:Configuration=Release /p:Platform="Any CPU"
+          msbuild "MDMUI/MDMUI.sln" /restore /t:Build /p:Configuration=Release /p:Platform="Any CPU"
 
       - name: Build (dotnet)
         shell: pwsh
         run: |
           .\scripts\build.ps1 -Configuration Release
 
+      - name: Test
+        shell: pwsh
+        run: |
+          dotnet test "MDMUI/MDMUI.Tests/MDMUI.Tests.csproj" -c Release -v minimal

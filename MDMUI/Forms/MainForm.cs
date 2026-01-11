@@ -35,12 +35,12 @@ namespace MDMUI
         private bool commandPaletteOpening;
         
         // 日志类
-        public static class LogHelper 
+        public static class LogHelper
         {
             public static void Log(string message)
             {
-                // 简单的日志实现
-                Console.WriteLine($"[{DateTime.Now}] {message}");
+                if (string.IsNullOrWhiteSpace(message)) return;
+                AppLog.Info(message);
             }
         }
 

@@ -4,7 +4,7 @@
 封装构建、清理与环境初始化脚本。
 
 ## 模块概述
-- **职责:** build/clean/genesis 脚本
+- **职责:** build/clean/test/genesis 脚本
 - **状态:** ✅稳定
 - **最后更新:** 2026-01-11
 
@@ -21,6 +21,7 @@
 ## API接口
 - build.ps1
 - clean.ps1
+- test.ps1
 - genesis.ps1
 
 ## 数据模型
@@ -30,4 +31,5 @@
 - PowerShell
 
 ## 变更历史
-- 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)
+- 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)        
+- 202601120248_mdmui_observability (history/2026-01/202601120248_mdmui_observability/)

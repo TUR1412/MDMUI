@@ -5,6 +5,14 @@
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+### Added
+- AppLog：诊断日志写入文件（按天 + 轮转 + 保留策略）
+- CrashReporter：未处理异常统一崩溃报告窗（复制详情/打开日志目录）
+- AppTelemetry：轻量性能埋点（`using (Measure)` 记录耗时）
+- MSTest 单元测试工程 `MDMUI.Tests` 与 `scripts/test.ps1`
+
+### Changed
+- CI：`msbuild /restore` + `dotnet test` 覆盖基础单测
 
 ## [1.1.0] - 2026-01-11
 ### Added

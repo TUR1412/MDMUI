@@ -19,10 +19,14 @@
 
 ## 错误与日志
 - **策略:** DAL/BLL 抛出明确异常，UI 层负责提示与降级
-- **日志:** SystemLog 表记录关键操作；Debug/Console 仅用于开发诊断
+- **日志:** SystemLog 表记录关键操作；AppLog 负责诊断日志（文件轮转 + 保留）
+- **兜底:** 未处理异常统一进入 CrashReporter（可复制详情/打开日志目录）
 
 ---
 
 ## 测试与流程
-- **测试:** 以本地人工验证为主（登录、菜单、备份、参数页）
+- **测试:** 以本地人工验证为主（登录、菜单、备份、参数页）+ 最小单元测试覆盖（MDMUI.Tests）
 - **提交:** 建议使用 feat/fix/refactor/chore 风格的提交消息
+
+### 本地测试入口
+- `pwsh -File .\\scripts\\test.ps1 -Configuration Release`

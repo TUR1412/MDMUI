@@ -26,6 +26,9 @@ WinForms · .NET Framework 4.8 · SQL Server LocalDB
 - 🗃️ 数据备份中心：一键备份 + 保留策略
 - ⌨️ 命令面板智能排序：最近/常用优先，支持 Ctrl+P 固定
 - 🧊 未来感主题系统：统一色彩、字体与控件风格
+- 🧯 全局异常兜底：崩溃报告窗 + 复制详情 + 日志定位
+- 📝 文件日志：默认写入 `%LOCALAPPDATA%\\MDMUI\\logs`，支持轮转与保留策略
+- ✅ 单元测试：MSTest + CI 测试步骤
 - 🧾 操作审计：关键操作写入 SystemLog
 
 ---
@@ -63,7 +66,13 @@ dotnet build .\MDMUI\MDMUI.sln -c Release
 pwsh -File .\scripts\build.ps1 -Configuration Release
 ```
 
-### 3) 数据库初始化 | Database
+### 3) 测试 | Test
+
+```powershell
+pwsh -File .\scripts\test.ps1 -Configuration Release
+```
+
+### 4) 数据库初始化 | Database
 - 默认连接字符串在 `MDMUI/App.config` -> `DefaultConnection`
 - 可用环境变量覆盖：
 
@@ -71,10 +80,10 @@ pwsh -File .\scripts\build.ps1 -Configuration Release
 $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catalog=UserDB;Integrated Security=True"
 ```
 
-应用启动会自动创建最小可运行结构（不覆盖已有数据）。如需完整演示数据，可执行：
+应用启动会自动创建最小可运行结构（不覆盖已有数据）。如需完整演示数据，可执行：  
 - `MDMUI/dbo.sql`
 
-### 4) 默认账号 | Default Account
+### 5) 默认账号 | Default Account
 - 用户名：`admin`
 - 密码：`1`
 
@@ -120,6 +129,24 @@ $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catal
 
 - 登录失败触发锁定策略，可在系统参数中调整阈值与时长
 - 密码策略可配置（长度/数字/大小写/特殊字符）
+
+---
+
+## 🧰 日志与诊断 | Logging & Diagnostics
+
+- 默认日志目录：`%LOCALAPPDATA%\\MDMUI\\logs`
+- 默认日志文件：`mdmui-YYYYMMDD.log`（按天），并对单文件大小做轮转
+- 配置覆盖（环境变量优先于 App.config）：
+  - `MDMUI_LOG_DIR` / `MDMUI.LogDirectory`
+  - `MDMUI_LOG_MAX_MB` / `MDMUI.LogMaxMB`
+  - `MDMUI_LOG_RETENTION_DAYS` / `MDMUI.LogRetentionDays`
+  - `MDMUI_LOG_DISABLED` / `MDMUI.LogDisabled`
+- 未处理异常会弹出崩溃报告窗（可复制详情/打开日志目录），便于定位问题
+
+English:
+- Default log dir: `%LOCALAPPDATA%\\MDMUI\\logs` (daily file `mdmui-YYYYMMDD.log`, with size-based rotation)
+- Overrides: environment variables > `App.config` (`MDMUI_LOG_DIR`, `MDMUI_LOG_MAX_MB`, `MDMUI_LOG_RETENTION_DAYS`, `MDMUI_LOG_DISABLED`)
+- Unhandled exceptions show a crash report dialog (copy details / open logs)
 
 ---
 

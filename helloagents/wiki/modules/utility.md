@@ -4,7 +4,7 @@
 提供主题、偏好、安全与通用工具。
 
 ## 模块概述
-- **职责:** 主题系统、偏好存储、审计日志、连接与参数辅助
+- **职责:** 主题系统、偏好存储、审计日志、连接与参数辅助、诊断日志、崩溃兜底、性能埋点
 - **状态:** ✅稳定
 - **最后更新:** 2026-01-11
 
@@ -31,6 +31,9 @@
 - CommandUsageStore.RecordUse / TogglePin
 - AuditTrail.Log
 - DbConnectionHelper.GetConnectionString
+- AppLog.Initialize / Info / Warn / Error / Flush / Shutdown
+- CrashReporter.Report
+- AppTelemetry.Measure
 
 ## 数据模型
 - AppPreferences (本地 XML)
@@ -38,6 +41,8 @@
 ## 依赖
 - CommonHelper
 - AppPreferencesStore
+- System.Configuration / System.Diagnostics
 
 ## 变更历史
-- 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)
+- 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)        
+- 202601120248_mdmui_observability (history/2026-01/202601120248_mdmui_observability/)
