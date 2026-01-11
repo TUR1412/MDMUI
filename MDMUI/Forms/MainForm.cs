@@ -336,6 +336,7 @@ namespace MDMUI
                     systemMenu.DropDownItems.Add(CreateMenuItem("数据备份", "系统设置_数据备份", "data_backup_view"));
                     systemMenu.DropDownItems.Add(CreateMenuItem("操作日志", "系统设置_操作日志", "log_view"));
                     systemMenu.DropDownItems.Add(CreateMenuItem("打开日志目录", "系统设置_打开日志目录", null));
+                    systemMenu.DropDownItems.Add(CreateMenuItem("日志查看器", "系统设置_日志查看器", null));
                     systemMenu.DropDownItems.Add(new ToolStripSeparator());     
                     addedSystemItem = true;
                      LogHelper.Log("已添加 系统设置 (高级功能) 子菜单 (权限检查通过)");
@@ -974,6 +975,10 @@ namespace MDMUI
 
                     case "系统设置_打开日志目录":
                         OpenLogDirectory();
+                        break;
+
+                    case "系统设置_日志查看器":
+                        form = new FrmFileLogViewer(CurrentUser);
                         break;
 
                     // 帮助菜单项 (Assuming Help_About is still handled)        

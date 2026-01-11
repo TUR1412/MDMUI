@@ -31,6 +31,7 @@
 - GridStyler.Apply
 - IThemeSelfStyled
 - UiThemingBootstrapper.Install
+- LogFileService.GetLogFiles / ReadTailLines
 - CommandUsageStore.RecordUse / TogglePin
 - AuditTrail.Log
 - DbConnectionHelper.GetConnectionString

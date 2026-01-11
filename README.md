@@ -142,6 +142,12 @@ $env:MDMUI_CONNECTIONSTRING = "Data Source=(LocalDB)\\MSSQLLocalDB;Initial Catal
 - `MDMUI_LOG_RETENTION_DAYS` / `MDMUI.LogRetentionDays`
 - `MDMUI_LOG_DISABLED` / `MDMUI.LogDisabled`
 
+### 日志查看器（应用内）
+
+在 `系统设置` 中提供：
+- `打开日志目录`：直接打开日志文件夹
+- `日志查看器`：在应用内查看日志文件、过滤关键字、复制内容、外部打开文件
+
 ### CrashReporter（未处理异常兜底）
 
 未处理异常会弹出崩溃报告窗，支持：
@@ -208,3 +214,8 @@ pwsh -File .\scripts\test.ps1 -Configuration Release
 - Daily log file: `mdmui-YYYYMMDD.log` (with size-based rotation)
 - Overrides: environment variables > `App.config` (`MDMUI_LOG_DIR`, `MDMUI_LOG_MAX_MB`, `MDMUI_LOG_RETENTION_DAYS`, `MDMUI_LOG_DISABLED`)
 
+### In-app Log Viewer
+
+Under `System Settings`:
+- `Open Log Folder` to open the directory
+- `Log Viewer` to view, filter, copy, and open log files inside the app
