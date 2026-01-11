@@ -125,6 +125,17 @@ namespace MDMUI
                 // 玻璃背景 + 微交互（尽力而为，不影响不支持的系统）
                 try { WindowBackdrop.TryApply(this, WindowBackdrop.BackdropKind.Mica, useDarkMode: false); } catch { }
                 ModernTheme.EnableMicroInteractions(this);
+                try
+                {
+                    SystemParameterService parameterService = new SystemParameterService();
+                    string accentHex = parameterService.GetString("UI.AccentColor", null);
+                    if (!string.IsNullOrWhiteSpace(accentHex))
+                    {
+                        ThemeManager.SetAccent(CommonHelper.GetColorFromHex(accentHex));
+                    }
+                }
+                catch { }
+                ThemeManager.ApplyTo(this);
 
                 // 如果当前用户为 null，降级为访客态（不授予任何权限）
                 if (CurrentUser == null)
@@ -358,34 +369,36 @@ namespace MDMUI
         // 自定义菜单颜色
         private class MenuColorTable : ProfessionalColorTable
         {
+            private ThemePalette Palette => ThemeManager.Palette;
+
             public override Color MenuItemSelected
             {
-                get { return Color.FromArgb(120, 170, 220); }
+                get { return Palette.AccentSoft; }
             }
-            
+
             public override Color MenuItemBorder
             {
-                get { return Color.FromArgb(90, 140, 190); }
+                get { return Palette.Accent; }
             }
-            
+
             public override Color MenuItemSelectedGradientBegin
             {
-                get { return Color.FromArgb(120, 170, 220); }
+                get { return Palette.AccentSoft; }
             }
-            
+
             public override Color MenuItemSelectedGradientEnd
             {
-                get { return Color.FromArgb(110, 160, 210); }
+                get { return Palette.AccentSoft; }
             }
-            
+
             public override Color MenuBorder
             {
-                get { return Color.FromArgb(80, 130, 180); }
+                get { return Palette.Border; }
             }
-            
+
             public override Color ToolStripDropDownBackground
             {
-                get { return Color.FromArgb(240, 245, 250); }
+                get { return Palette.Surface; }
             }
         }
         
@@ -483,6 +496,17 @@ namespace MDMUI
                 }
             }
 
+            Dictionary<string, CommandUsageEntry> usageIndex = CommandUsageStore.LoadIndex();
+            foreach (CommandPaletteItem item in unique.Values)
+            {
+                if (usageIndex.TryGetValue(item.FormName, out CommandUsageEntry usage))
+                {
+                    item.UsageCount = usage.UseCount;
+                    item.LastUsedUtc = usage.LastUsedUtc;
+                    item.Pinned = usage.Pinned;
+                }
+            }
+
             return unique.Values
                 .OrderBy(i => i.Group, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(i => i.Title, StringComparer.OrdinalIgnoreCase)
@@ -525,6 +549,7 @@ namespace MDMUI
             }
 
             OpenFunctionForm(command.FormName, command.PermissionTag);
+            CommandUsageStore.RecordUse(command.FormName, command.Title, command.Group);
         }
         
         // 创建状态栏
@@ -935,14 +960,16 @@ namespace MDMUI
                     LogHelper.Log($"窗体 {formName} 创建成功，准备添加到 TabControl。");
                     TabPage newTabPage = new TabPage(displayName);
                     newTabPage.Name = formName; // Use unique formName for identification
-                    newTabPage.BackColor = Color.White; // 设置背景色
-                    
+                    newTabPage.BackColor = ThemeManager.Palette.Surface; // 设置背景色
+
                     form.TopLevel = false;
                     form.FormBorderStyle = FormBorderStyle.None;
                     form.Dock = DockStyle.Fill;
 
                     // 调整子窗体 UI 样式
                     AdjustChildFormUI(form);
+                    ModernTheme.EnableMicroInteractions(form);
+                    ThemeManager.ApplyTo(form);
                     
                     newTabPage.Controls.Add(form);
                     tabControl.TabPages.Add(newTabPage);
@@ -1249,9 +1276,16 @@ namespace MDMUI
                             return;
                         }
 
-                        if (txtNewPassword.Text != txtConfirmPassword.Text)
+                        if (txtNewPassword.Text != txtConfirmPassword.Text)     
                         {
                             MessageBox.Show("新密码和确认密码不一致！", "验证错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
+                        UserSecurityService securityService = new UserSecurityService();
+                        if (!securityService.ValidatePassword(txtNewPassword.Text, out string reason))
+                        {
+                            MessageBox.Show(reason ?? "密码不符合策略", "验证错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
@@ -1261,6 +1295,7 @@ namespace MDMUI
                             // 更新当前用户密码 - 使用加密后的密码
                             CurrentUser.Password = MDMUI.Utility.PasswordEncryptor.EncryptPassword(txtNewPassword.Text);
 
+                            AuditTrail.Log(CurrentUser, "ChangePassword", "User", "用户修改密码");
                             MessageBox.Show("密码修改成功！", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             passwordForm.DialogResult = DialogResult.OK;
                             passwordForm.Close();
@@ -1276,6 +1311,8 @@ namespace MDMUI
                     }
                 };
 
+                ModernTheme.EnableMicroInteractions(passwordForm);
+                ThemeManager.ApplyTo(passwordForm);
                 passwordForm.ShowDialog(this);
             }
         }
@@ -1292,9 +1329,9 @@ namespace MDMUI
             tabControl.ItemSize = new Size(130, 40); // 调整高度为40
             tabControl.Font = new Font("微软雅黑", 10.5F, FontStyle.Bold); // 使用粗体字
             tabControl.Padding = new Point(15, 8); // 增加顶部Padding确保标签不被菜单栏遮挡
-            
+
             // 设置背景色和边框样式
-            tabControl.BackColor = Color.FromArgb(240, 245, 250);
+            tabControl.BackColor = ThemeManager.Palette.Background;
             tabControl.Appearance = TabAppearance.Normal;
             
             // 添加事件处理程序
@@ -1415,7 +1452,7 @@ namespace MDMUI
         {
             tabContainer.Dock = DockStyle.Fill;
             tabContainer.Padding = new Padding(20, 40, 20, 20); // 增加顶部距离到40像素
-            tabContainer.BackColor = Color.FromArgb(240, 245, 250);
+            tabContainer.BackColor = ThemeManager.Palette.Background;
             tabContainer.Controls.Add(tabControl);
         }
 

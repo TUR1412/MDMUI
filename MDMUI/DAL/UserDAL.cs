@@ -4,14 +4,14 @@ using System.Data;
 using System.Data.SqlClient;
 using MDMUI.Model;
 using MDMUI.Utility;
-using System.Configuration; // 添加 ConfigurationManager 支持
+
 
 namespace MDMUI.DAL
 {
     public class UserDAL
     {
         // 从 App.config 读取连接字符串
-        private string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+        private string connectionString = DbConnectionHelper.GetConnectionString();
 
         // 验证用户登录
         public User ValidateUser(string username, string password)
@@ -173,6 +173,43 @@ namespace MDMUI.DAL
                     throw new Exception("获取用户信息失败: " + ex.Message, ex);
                 }
             }
+            return user;
+        }
+
+        // 根据用户名获取用户信息（不校验密码）
+        public User GetUserByUsername(string username)
+        {
+            if (string.IsNullOrWhiteSpace(username)) return null;
+
+            User user = null;
+            string userQuery = @"SELECT u.Id, u.Username, u.Password, u.RealName, u.RoleId, r.RoleName, u.LastLoginTime
+                           FROM Users u
+                           LEFT JOIN Roles r ON u.RoleId = r.RoleId
+                           WHERE u.Username = @Username";
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                try
+                {
+                    connection.Open();
+                    using (SqlCommand userCommand = new SqlCommand(userQuery, connection))
+                    {
+                        userCommand.Parameters.AddWithValue("@Username", username);
+                        using (SqlDataReader reader = userCommand.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                user = MapReaderToUser(reader);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception("获取用户信息失败: " + ex.Message, ex);
+                }
+            }
+
             return user;
         }
 

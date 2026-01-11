@@ -2,8 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using System.Configuration;
-using MDMUI.Utility; // Assuming DBHelper or similar utility
+using MDMUI.Utility;
 
 namespace MDMUI.DAL
 {
@@ -12,7 +11,7 @@ namespace MDMUI.DAL
     /// </summary>
     public class SystemLogDAL
     {
-        private string connectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString;
+        private string connectionString = DbConnectionHelper.GetConnectionString();
 
         /// <summary>
         /// 获取系统日志记录 (支持过滤)

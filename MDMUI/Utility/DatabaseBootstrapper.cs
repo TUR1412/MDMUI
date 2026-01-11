@@ -68,6 +68,9 @@ END";
             EnsureUserFactoryTableExists(connection);
             EnsurePermissionsTableExists(connection);
             EnsureUserPermissionsTableExists(connection);
+            EnsureSystemLogTableExists(connection);
+            EnsureSystemParametersTableExists(connection);
+            EnsureUserSecurityTableExists(connection);
 
             // 业务功能表：确保主要功能页不会因为缺表直接崩溃（幂等、非破坏）
             EnsureProductCategoryTableExists(connection);
@@ -198,6 +201,70 @@ BEGIN
     );
 
     CREATE UNIQUE INDEX UX_UserPermissions_User_Permission ON dbo.UserPermissions(UserId, PermissionId);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureSystemLogTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.SystemLog', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SystemLog (
+        LogId INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        UserId INT NOT NULL,
+        UserName NVARCHAR(50) NOT NULL,
+        OperationType NVARCHAR(50) NOT NULL,
+        OperationModule NVARCHAR(50) NOT NULL,
+        Description NVARCHAR(200) NULL,
+        IPAddress NVARCHAR(50) NULL,
+        LogTime DATETIME NOT NULL CONSTRAINT DF_SystemLog_LogTime DEFAULT(GETDATE())
+    );
+
+    CREATE INDEX IX_SystemLog_LogTime ON dbo.SystemLog(LogTime);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureSystemParametersTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.SystemParameters', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SystemParameters (
+        ParamKey NVARCHAR(120) NOT NULL PRIMARY KEY,
+        ParamValue NVARCHAR(2000) NULL,
+        Description NVARCHAR(200) NULL,
+        UpdatedAt DATETIME NOT NULL CONSTRAINT DF_SystemParameters_UpdatedAt DEFAULT(GETDATE())
+    );
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureUserSecurityTableExists(SqlConnection connection)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.UserSecurity', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.UserSecurity (
+        UserId INT NOT NULL PRIMARY KEY,
+        FailedCount INT NOT NULL CONSTRAINT DF_UserSecurity_FailedCount DEFAULT(0),
+        LastFailedAt DATETIME NULL,
+        LockoutUntil DATETIME NULL,
+        LastSuccessAt DATETIME NULL
+    );
 END";
 
             using (SqlCommand cmd = new SqlCommand(sql, connection))
@@ -389,6 +456,7 @@ END";
             EnsureFactory(connection, "F002", "第二电子厂", "上海市浦东新区", "李四", "13900139000");
 
             EnsureUserFactory(connection, adminUserId, "F001", isDefault: true);
+            EnsureUserSecurityRow(connection, adminUserId);
 
             // 最小权限集合：覆盖应用内常用模块（菜单/功能显示需要）
             EnsurePermission(connection, "factory", "view", "查看工厂信息");
@@ -472,6 +540,18 @@ END";
             EnsureArea(connection, "BJ-HD", "海淀区", "BJ", "100080", "北京海淀区");
             EnsureArea(connection, "SH", "上海", "CN", "200000", null);
             EnsureArea(connection, "SH-PD", "浦东新区", "SH", "200120", "上海浦东新区");
+
+            // 系统参数默认值（幂等、不覆盖）
+            EnsureSystemParameter(connection, "Security.MaxFailedLogin", "5", "登录失败锁定阈值");
+            EnsureSystemParameter(connection, "Security.LockoutMinutes", "15", "锁定时长(分钟)");
+            EnsureSystemParameter(connection, "Security.PasswordMinLength", "8", "密码最小长度");
+            EnsureSystemParameter(connection, "Security.PasswordRequireNumber", "true", "密码需包含数字");
+            EnsureSystemParameter(connection, "Security.PasswordRequireUpper", "false", "密码需包含大写字母");
+            EnsureSystemParameter(connection, "Security.PasswordRequireLower", "false", "密码需包含小写字母");
+            EnsureSystemParameter(connection, "Security.PasswordRequireSpecial", "false", "密码需包含特殊字符");
+            EnsureSystemParameter(connection, "Backup.RetentionDays", "7", "备份保留天数");
+            EnsureSystemParameter(connection, "Backup.Directory", string.Empty, "备份目录(为空则使用默认)");
+            EnsureSystemParameter(connection, "UI.AccentColor", "00A3FF", "主题强调色");
         }
 
         private static int EnsureRole(SqlConnection connection, string roleName)
@@ -717,6 +797,47 @@ VALUES (@ModuleName, @ActionName, @Description);";
                 insertCmd.Parameters.AddWithValue("@ActionName", actionName);
                 insertCmd.Parameters.AddWithValue("@Description", (object)description ?? DBNull.Value);
                 insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureSystemParameter(SqlConnection connection, string key, string value, string description)
+        {
+            const string selectSql = "SELECT COUNT(1) FROM dbo.SystemParameters WHERE ParamKey = @ParamKey";
+            using (SqlCommand selectCmd = new SqlCommand(selectSql, connection))
+            {
+                selectCmd.Parameters.AddWithValue("@ParamKey", key);
+                int count = Convert.ToInt32(selectCmd.ExecuteScalar());
+                if (count > 0)
+                {
+                    return;
+                }
+            }
+
+            const string insertSql = @"
+INSERT INTO dbo.SystemParameters (ParamKey, ParamValue, Description)
+VALUES (@ParamKey, @ParamValue, @Description);";
+
+            using (SqlCommand insertCmd = new SqlCommand(insertSql, connection))
+            {
+                insertCmd.Parameters.AddWithValue("@ParamKey", key);
+                insertCmd.Parameters.AddWithValue("@ParamValue", (object)value ?? DBNull.Value);
+                insertCmd.Parameters.AddWithValue("@Description", (object)description ?? DBNull.Value);
+                insertCmd.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureUserSecurityRow(SqlConnection connection, int userId)
+        {
+            const string sql = @"
+IF NOT EXISTS (SELECT 1 FROM dbo.UserSecurity WHERE UserId = @UserId)
+BEGIN
+    INSERT INTO dbo.UserSecurity (UserId, FailedCount) VALUES (@UserId, 0);
+END";
+
+            using (SqlCommand cmd = new SqlCommand(sql, connection))
+            {
+                cmd.Parameters.AddWithValue("@UserId", userId);
+                cmd.ExecuteNonQuery();
             }
         }
 

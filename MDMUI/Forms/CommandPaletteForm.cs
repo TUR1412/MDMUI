@@ -17,12 +17,17 @@ namespace MDMUI
             Group = group ?? string.Empty;
             FormName = formName ?? string.Empty;
             PermissionTag = permissionTag;
+            SearchText = (Title + " " + Group + " " + FormName).Trim();
         }
 
         public string Title { get; }
         public string Group { get; }
         public string FormName { get; }
         public string PermissionTag { get; }
+        public string SearchText { get; }
+        public int UsageCount { get; set; }
+        public DateTime LastUsedUtc { get; set; }
+        public bool Pinned { get; set; }
 
         public override string ToString()
         {
@@ -70,8 +75,9 @@ namespace MDMUI
         {
             SuspendLayout();
 
-            titleFont = new Font("Microsoft YaHei UI", 11.5f, FontStyle.Bold);
-            subtitleFont = new Font("Microsoft YaHei UI", 9f, FontStyle.Regular);
+            ThemePalette palette = ThemeManager.Palette;
+            titleFont = ThemeManager.CreateTitleFont(11.5f, FontStyle.Bold);
+            subtitleFont = ThemeManager.CreateBodyFont(9f, FontStyle.Regular);
 
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -80,14 +86,14 @@ namespace MDMUI
             KeyPreview = true;
             DoubleBuffered = true;
 
-            BackColor = Color.FromArgb(250, 251, 253);
+            BackColor = palette.Background;
             Padding = new Padding(14);
             Size = new Size(720, 420);
 
             Panel container = new Panel
             {
                 Dock = DockStyle.Fill,
-                BackColor = Color.White,
+                BackColor = palette.Surface,
                 Padding = new Padding(12)
             };
 
@@ -95,8 +101,10 @@ namespace MDMUI
             {
                 Dock = DockStyle.Top,
                 Height = 36,
-                Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular),
-                BorderStyle = BorderStyle.FixedSingle
+                Font = ThemeManager.CreateBodyFont(11f),
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = palette.SurfaceAlt,
+                ForeColor = palette.TextPrimary
             };
             txtQuery.TextChanged += (s, e) => RefreshFilter();
             txtQuery.KeyDown += TxtQuery_KeyDown;
@@ -105,9 +113,9 @@ namespace MDMUI
             {
                 Dock = DockStyle.Bottom,
                 Height = 22,
-                Text = "Enter 打开 · Esc 关闭 · ↑↓ 选择 · 支持空格分词搜索",
-                Font = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(120, 120, 130),
+                Text = "Enter 打开 · Esc 关闭 · ↑↓ 选择 · Ctrl+P 固定",
+                Font = ThemeManager.CreateBodyFont(8.5f),
+                ForeColor = palette.TextSecondary,
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
@@ -117,7 +125,9 @@ namespace MDMUI
                 BorderStyle = BorderStyle.FixedSingle,
                 IntegralHeight = false,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 48
+                ItemHeight = 48,
+                BackColor = palette.Surface,
+                ForeColor = palette.TextPrimary
             };
             lstCommands.DrawItem += LstCommands_DrawItem;
             lstCommands.DoubleClick += (s, e) => SubmitSelection();
@@ -152,6 +162,12 @@ namespace MDMUI
                 {
                     e.Handled = true;
                     Close();
+                }
+
+                if (e.Control && e.KeyCode == Keys.P)
+                {
+                    e.Handled = true;
+                    TogglePinSelected();
                 }
             };
 
@@ -229,21 +245,20 @@ namespace MDMUI
             filtered.Clear();
 
             IEnumerable<CommandPaletteItem> source = allCommands;
+            List<(CommandPaletteItem item, int score)> scored = new List<(CommandPaletteItem, int)>();
 
-            if (terms.Length == 0)
+            foreach (CommandPaletteItem item in source)
             {
-                filtered.AddRange(source);
-            }
-            else
-            {
-                foreach (CommandPaletteItem item in source)
+                if (TryGetScore(item, terms, out int score))
                 {
-                    if (IsMatch(item, terms))
-                    {
-                        filtered.Add(item);
-                    }
+                    scored.Add((item, score));
                 }
             }
+
+            filtered.AddRange(scored
+                .OrderByDescending(item => item.score)
+                .ThenBy(item => item.item.Title, StringComparer.OrdinalIgnoreCase)
+                .Select(item => item.item));
 
             lstCommands.BeginUpdate();
             lstCommands.Items.Clear();
@@ -259,20 +274,56 @@ namespace MDMUI
             }
         }
 
-        private static bool IsMatch(CommandPaletteItem item, string[] terms)
+        private static bool TryGetScore(CommandPaletteItem item, string[] terms, out int score)
         {
-            string haystack = (item.Title + " " + item.Group + " " + item.FormName).Trim();
-            if (string.IsNullOrEmpty(haystack)) return false;
+            score = 0;
+            if (item == null) return false;
 
-            foreach (string term in terms)
+            string haystack = item.SearchText ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(haystack)) return false;
+
+            int usageScore = GetUsageScore(item);
+
+            if (terms == null || terms.Length == 0)
             {
-                if (haystack.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    return false;
-                }
+                score = usageScore;
+                return true;
             }
 
+            int matchScore = 0;
+            foreach (string term in terms)
+            {
+                if (string.IsNullOrWhiteSpace(term)) continue;
+                int index = haystack.IndexOf(term, StringComparison.OrdinalIgnoreCase);
+                if (index < 0)
+                {
+                    score = 0;
+                    return false;
+                }
+
+                matchScore += index == 0 ? 120 : Math.Max(20, 80 - index);
+            }
+
+            score = usageScore + matchScore;
             return true;
+        }
+
+        private static int GetUsageScore(CommandPaletteItem item)
+        {
+            int score = 0;
+            if (item.Pinned) score += 500;
+            if (item.UsageCount > 0)
+            {
+                score += Math.Min(200, item.UsageCount * 12);
+            }
+
+            if (item.LastUsedUtc != DateTime.MinValue)
+            {
+                double days = (DateTime.UtcNow - item.LastUsedUtc).TotalDays;
+                score += (int)Math.Max(0, 140 - days * 8);
+            }
+
+            return score;
         }
 
         private void SubmitSelection()
@@ -283,6 +334,18 @@ namespace MDMUI
                 DialogResult = DialogResult.OK;
                 Close();
             }
+        }
+
+        private void TogglePinSelected()
+        {
+            if (!(lstCommands.SelectedItem is CommandPaletteItem item))
+            {
+                return;
+            }
+
+            CommandUsageStore.TogglePin(item.FormName);
+            item.Pinned = !item.Pinned;
+            RefreshFilter();
         }
 
         private void LstCommands_DrawItem(object sender, DrawItemEventArgs e)
@@ -297,10 +360,11 @@ namespace MDMUI
             CommandPaletteItem item = (CommandPaletteItem)lstCommands.Items[e.Index];
             bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-            Color bg = selected ? Color.FromArgb(235, 242, 255) : Color.White;
-            Color border = selected ? Color.FromArgb(170, 200, 255) : Color.FromArgb(235, 235, 242);
-            Color titleColor = Color.FromArgb(35, 35, 40);
-            Color subColor = Color.FromArgb(120, 120, 130);
+            ThemePalette palette = ThemeManager.Palette;
+            Color bg = selected ? palette.AccentSoft : palette.Surface;
+            Color border = selected ? palette.Accent : palette.Border;
+            Color titleColor = palette.TextPrimary;
+            Color subColor = palette.TextSecondary;
 
             Rectangle rect = e.Bounds;
             rect.Inflate(-6, -4);
@@ -318,10 +382,12 @@ namespace MDMUI
             Rectangle titleRect = new Rectangle(rect.X + 10, rect.Y + 6, rect.Width - 20, 22);
             Rectangle subRect = new Rectangle(rect.X + 10, rect.Y + 26, rect.Width - 20, 18);
 
-            TextRenderer.DrawText(e.Graphics, item.Title, titleFont, titleRect, titleColor,
+            string pin = item.Pinned ? "★ " : string.Empty;
+            string usage = item.UsageCount > 0 ? $" · {item.UsageCount}次" : string.Empty;
+            TextRenderer.DrawText(e.Graphics, pin + item.Title, titleFont, titleRect, titleColor,
                 TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
 
-            TextRenderer.DrawText(e.Graphics, item.Group, subtitleFont, subRect, subColor,
+            TextRenderer.DrawText(e.Graphics, item.Group + usage, subtitleFont, subRect, subColor,
                 TextFormatFlags.EndEllipsis | TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
 
             e.DrawFocusRectangle();

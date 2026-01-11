@@ -49,16 +49,16 @@ namespace MDMUI
         private extern static void SendMessage(IntPtr hWnd, int wMsg, int wParam, int lParam);
         
         // 渐变背景色
-        private Color gradientStart = Color.FromArgb(72, 52, 212);  // 深蓝紫色
-        private Color gradientEnd = Color.FromArgb(130, 60, 229);   // 明亮紫色
-        
+        private Color gradientStart = Color.FromArgb(12, 120, 210);  // 深蓝
+        private Color gradientEnd = Color.FromArgb(20, 196, 170);    // 青绿
+
         // 控件颜色
-        private Color primaryColor = Color.FromArgb(72, 52, 212);   // 主色
-        private Color secondaryColor = Color.FromArgb(110, 90, 220); // 次要色
-        private Color accentColor = Color.FromArgb(255, 94, 98);     // 强调色
-        private Color textDarkColor = Color.FromArgb(60, 60, 70);    // 深色文本
-        private Color textLightColor = Color.FromArgb(240, 240, 250); // 浅色文本
-        private Color shadowColor = Color.FromArgb(0, 0, 0, 60);     // 阴影色
+        private Color primaryColor = Color.FromArgb(0, 163, 255);    // 主色
+        private Color secondaryColor = Color.FromArgb(60, 200, 190); // 次要色
+        private Color accentColor = Color.FromArgb(255, 140, 70);    // 强调色
+        private Color textDarkColor = Color.FromArgb(24, 32, 46);    // 深色文本
+        private Color textLightColor = Color.FromArgb(245, 250, 255); // 浅色文本
+        private Color shadowColor = Color.FromArgb(0, 0, 0, 45);     // 阴影色
 
         public Form1()
         {
@@ -82,6 +82,9 @@ namespace MDMUI
 
             // 微交互（hover/click 平滑过渡）
             ModernTheme.EnableMicroInteractions(this);
+
+            TryApplyThemeFromParameters();
+            ThemeManager.ApplyTo(this);
 
             // 设置默认文本和样式
             this.lblLoginHeader.Text = "用户登录";
@@ -454,7 +457,7 @@ namespace MDMUI
                 
                 // 使用更清晰的字体和颜色
                 using (Font font = new Font("Segoe UI Emoji", fontSize, FontStyle.Regular))
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(72, 52, 212)))
+                using (SolidBrush brush = new SolidBrush(primaryColor))
                 {
                     // 居中绘制图标
                     SizeF size = g.MeasureString(text, font);
@@ -659,11 +662,11 @@ namespace MDMUI
                 this.btnLogin.Enabled = false;
 
                 string factoryId = GetFactoryIdByName(factoryName);
-                // 修改为使用Login方法而不是ValidateUser
-                currentUser = await Task.Run(() => userBLL.Login(username, password));
+                LoginResult loginResult = await Task.Run(() => userBLL.TryLogin(username, password));
 
-                if (currentUser != null)
+                if (loginResult != null && loginResult.Success && loginResult.User != null)
                 {
+                    currentUser = loginResult.User;
                     SaveLoginPreferences(username, password, factoryName, language);
 
                     // 设置用户的工厂ID
@@ -687,7 +690,24 @@ namespace MDMUI
                 }
                 else
                 {
-                    MessageBox.Show("用户名或密码错误", "登录失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    string message = "用户名或密码错误";
+                    if (loginResult != null)
+                    {
+                        if (loginResult.LockoutUntil != null)
+                        {
+                            message = $"账号已锁定至 {loginResult.LockoutUntil:yyyy-MM-dd HH:mm}";
+                        }
+                        else if (loginResult.RemainingAttempts != null)
+                        {
+                            message = $"用户名或密码错误，剩余尝试 {loginResult.RemainingAttempts} 次";
+                        }
+                        else if (!string.IsNullOrWhiteSpace(loginResult.FailureReason))
+                        {
+                            message = loginResult.FailureReason;
+                        }
+                    }
+
+                    MessageBox.Show(message, "登录失败", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             catch (Exception ex)
@@ -750,6 +770,23 @@ namespace MDMUI
             // 确保可见性
             lblVersion.Visible = true;
             lblVersion.BringToFront();
+        }
+
+        private void TryApplyThemeFromParameters()
+        {
+            try
+            {
+                SystemParameterService parameterService = new SystemParameterService();
+                string accentHex = parameterService.GetString("UI.AccentColor", null);
+                if (!string.IsNullOrWhiteSpace(accentHex))
+                {
+                    ThemeManager.SetAccent(CommonHelper.GetColorFromHex(accentHex));
+                }
+            }
+            catch
+            {
+                // 忽略配置读取失败
+            }
         }
 
         private void lblVersion_Click(object sender, EventArgs e)

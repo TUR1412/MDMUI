@@ -1,0 +1,43 @@
+# Utility
+
+## 目的
+提供主题、偏好、安全与通用工具。
+
+## 模块概述
+- **职责:** 主题系统、偏好存储、审计日志、连接与参数辅助
+- **状态:** ✅稳定
+- **最后更新:** 2026-01-11
+
+## 规范
+
+### 需求: 主题系统
+**模块:** Utility
+集中管理颜色、字体、控件样式。
+
+#### 场景: 全局应用主题
+- 主题参数来自系统参数或默认值
+- 子窗体自动继承
+
+### 需求: 命令面板偏好
+**模块:** Utility
+保存最近使用与固定的命令。
+
+#### 场景: 记录命令
+- 记录使用次数与时间
+- 供排序与推荐
+
+## API接口
+- ThemeManager.ApplyTo
+- CommandUsageStore.RecordUse / TogglePin
+- AuditTrail.Log
+- DbConnectionHelper.GetConnectionString
+
+## 数据模型
+- AppPreferences (本地 XML)
+
+## 依赖
+- CommonHelper
+- AppPreferencesStore
+
+## 变更历史
+- 202601112006_mdmui_revamp (history/2026-01/202601112006_mdmui_revamp/)

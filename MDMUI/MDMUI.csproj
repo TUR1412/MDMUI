@@ -54,6 +54,9 @@
     <Compile Include="BLL\EqpGroupService.cs" />
     <Compile Include="BLL\SystemLogBLL.cs" />
     <Compile Include="BLL\UserService.cs" />
+    <Compile Include="BLL\DatabaseBackupService.cs" />
+    <Compile Include="BLL\SystemParameterService.cs" />
+    <Compile Include="BLL\UserSecurityService.cs" />
     <Compile Include="BLL\PermissionService.cs" />
     <Compile Include="BLL\AreaService.cs" />
     <Compile Include="BLL\DepartmentService.cs" />
@@ -81,6 +84,8 @@
     <Compile Include="DAL\EquipmentMaintenanceDAL.cs" />
     <Compile Include="DAL\EqpGroupDAL.cs" />
     <Compile Include="DAL\SystemLogDAL.cs" />
+    <Compile Include="DAL\SystemParameterDAL.cs" />
+    <Compile Include="DAL\UserSecurityDAL.cs" />
     <Compile Include="DAL\PermissionDAL.cs" />
     <Compile Include="DAL\AreaDAL.cs" />
     <Compile Include="DAL\SubDeviceDAL.cs" />
@@ -294,6 +299,10 @@
     <Compile Include="Model\Permission.cs" />
     <Compile Include="Model\Product.cs" />
     <Compile Include="Model\ProductCategory.cs" />
+    <Compile Include="Model\SystemParameter.cs" />
+    <Compile Include="Model\UserSecurityStatus.cs" />
+    <Compile Include="Model\LoginResult.cs" />
+    <Compile Include="Model\BackupResult.cs" />
     <Compile Include="Model\Roles.cs" />
     <Compile Include="Model\User.cs" />
     <Compile Include="Model\EqpGroup.cs" />
@@ -308,6 +317,9 @@
     <Compile Include="Utility\DbConnectionHelper.cs" />
     <Compile Include="Utility\DatabaseBootstrapper.cs" />
     <Compile Include="Utility\AppPreferencesStore.cs" />
+    <Compile Include="Utility\CommandUsageStore.cs" />
+    <Compile Include="Utility\ThemeManager.cs" />
+    <Compile Include="Utility\AuditTrail.cs" />
     <Compile Include="Utility\PasswordEncryptor.cs" />
     <Compile Include="Utility\PermissionChecker.cs" />
     <Compile Include="Utility\SqlDataReaderExtensions.cs" />

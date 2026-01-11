@@ -2508,3 +2508,69 @@ GO
 ALTER TABLE [dbo].[Users] ADD CONSTRAINT [FK_Users_Roles] FOREIGN KEY ([RoleId]) REFERENCES [dbo].[Roles] ([RoleId]) ON DELETE NO ACTION ON UPDATE NO ACTION
 GO
 
+
+-- ----------------------------
+-- Table structure for SystemParameters
+-- ----------------------------
+IF EXISTS (SELECT * FROM sys.all_objects WHERE object_id = OBJECT_ID(N'[dbo].[SystemParameters]') AND type IN ('U'))
+    DROP TABLE [dbo].[SystemParameters]
+GO
+
+CREATE TABLE [dbo].[SystemParameters] (
+  [ParamKey] nvarchar(120) COLLATE SQL_Latin1_General_CP1_CI_AS NOT NULL,
+  [ParamValue] nvarchar(2000) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+  [Description] nvarchar(200) COLLATE SQL_Latin1_General_CP1_CI_AS NULL,
+  [UpdatedAt] datetime NOT NULL DEFAULT getdate(),
+  CONSTRAINT [PK_SystemParameters] PRIMARY KEY CLUSTERED ([ParamKey])
+)
+GO
+
+ALTER TABLE [dbo].[SystemParameters] SET (LOCK_ESCALATION = TABLE)
+GO
+
+-- ----------------------------
+-- Records of SystemParameters
+-- ----------------------------
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.MaxFailedLogin', N'5', N'登录失败锁定阈值')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.LockoutMinutes', N'15', N'锁定时长(分钟)')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.PasswordMinLength', N'8', N'密码最小长度')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.PasswordRequireNumber', N'true', N'密码需包含数字')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.PasswordRequireUpper', N'false', N'密码需包含大写字母')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.PasswordRequireLower', N'false', N'密码需包含小写字母')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Security.PasswordRequireSpecial', N'false', N'密码需包含特殊字符')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Backup.RetentionDays', N'7', N'备份保留天数')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'Backup.Directory', N'', N'备份目录(为空则使用默认)')
+GO
+INSERT INTO [dbo].[SystemParameters] ([ParamKey], [ParamValue], [Description]) VALUES (N'UI.AccentColor', N'00A3FF', N'主题强调色')
+GO
+
+-- ----------------------------
+-- Table structure for UserSecurity
+-- ----------------------------
+IF EXISTS (SELECT * FROM sys.all_objects WHERE object_id = OBJECT_ID(N'[dbo].[UserSecurity]') AND type IN ('U'))
+    DROP TABLE [dbo].[UserSecurity]
+GO
+
+CREATE TABLE [dbo].[UserSecurity] (
+  [UserId] int NOT NULL,
+  [FailedCount] int NOT NULL DEFAULT 0,
+  [LastFailedAt] datetime NULL,
+  [LockoutUntil] datetime NULL,
+  [LastSuccessAt] datetime NULL,
+  CONSTRAINT [PK_UserSecurity] PRIMARY KEY CLUSTERED ([UserId])
+)
+GO
+
+ALTER TABLE [dbo].[UserSecurity] SET (LOCK_ESCALATION = TABLE)
+GO
+
+ALTER TABLE [dbo].[UserSecurity] ADD CONSTRAINT [FK_UserSecurity_User] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([Id]) ON DELETE NO ACTION ON UPDATE NO ACTION
+GO

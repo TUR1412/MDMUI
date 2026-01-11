@@ -13,8 +13,8 @@ namespace MDMUI.Controls
     public class GlassPanel : Panel
     {
         private int cornerRadius = 16;
-        private Color glassColor = Color.FromArgb(210, 255, 255, 255);
-        private Color borderColor = Color.FromArgb(80, 255, 255, 255);
+        private Color glassColor = Color.FromArgb(210, 250, 252, 255);
+        private Color borderColor = Color.FromArgb(90, 0, 163, 255);
         private float borderThickness = 1f;
 
         public GlassPanel()
@@ -172,4 +172,3 @@ namespace MDMUI.Controls
         }
     }
 }
-

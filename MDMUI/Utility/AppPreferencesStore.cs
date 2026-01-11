@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
@@ -15,6 +16,18 @@ namespace MDMUI.Utility
         public bool RememberPassword { get; set; }
         public string ProtectedPassword { get; set; }
         public DateTime LastUpdatedUtc { get; set; }
+        public List<CommandUsageEntry> CommandUsage { get; set; } = new List<CommandUsageEntry>();
+    }
+
+    [Serializable]
+    public sealed class CommandUsageEntry
+    {
+        public string FormName { get; set; }
+        public string Title { get; set; }
+        public string Group { get; set; }
+        public int UseCount { get; set; }
+        public DateTime LastUsedUtc { get; set; }
+        public bool Pinned { get; set; }
     }
 
     /// <summary>
@@ -57,7 +70,12 @@ namespace MDMUI.Utility
                     {
                         XmlSerializer serializer = new XmlSerializer(typeof(AppPreferences));
                         var prefs = serializer.Deserialize(fs) as AppPreferences;
-                        return prefs ?? new AppPreferences();
+                        AppPreferences resolved = prefs ?? new AppPreferences();
+                        if (resolved.CommandUsage == null)
+                        {
+                            resolved.CommandUsage = new List<CommandUsageEntry>();
+                        }
+                        return resolved;
                     }
                 }
                 catch
@@ -136,4 +154,3 @@ namespace MDMUI.Utility
         }
     }
 }
-

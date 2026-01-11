@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using MDMUI.DAL;
 using MDMUI.Model;
 using MDMUI.Utility; // For PasswordEncryptor if needed
@@ -15,6 +16,7 @@ namespace MDMUI.BLL
         private UserDAL userDal = new UserDAL();
         private RolesDAL rolesDal = new RolesDAL(); // Instantiate RolesDAL
         private SystemLogBLL systemLogBll = new SystemLogBLL(); // For logging
+        private UserSecurityService securityService = new UserSecurityService();
 
         /// <summary>
         /// 验证用户登录
@@ -31,15 +33,9 @@ namespace MDMUI.BLL
 
             try
             {
-                // Call ValidateUser instead of GetUserByUsername
-                User user = userDal.ValidateUser(username, password);
-                if (user != null)
-                {
-                    // Validation logic is now inside ValidateUser, just need to update LastLoginTime
-                    userDal.UpdateLastLoginTime(user.Id);
-                    return user;
-                }
-                return null; // User validation failed
+                UserBLL userBll = new UserBLL();
+                LoginResult result = userBll.TryLogin(username, password);
+                return result.Success ? result.User : null;
             }
             catch (Exception ex)
             {
@@ -118,7 +114,17 @@ namespace MDMUI.BLL
             // 添加验证逻辑 (例如：用户名是否已存在，密码复杂度等)
             if (string.IsNullOrWhiteSpace(userToAdd.Username)) { throw new ArgumentException("用户名不能为空。", nameof(userToAdd.Username)); }
             if (string.IsNullOrWhiteSpace(userToAdd.Password)) { throw new ArgumentException("密码不能为空。", nameof(userToAdd.Password)); } // 应该检查加密后的密码
-             if (string.IsNullOrWhiteSpace(userToAdd.RoleName)) { throw new ArgumentException("角色不能为空。", nameof(userToAdd.RoleName)); }
+            if (string.IsNullOrWhiteSpace(userToAdd.RoleName)) { throw new ArgumentException("角色不能为空。", nameof(userToAdd.RoleName)); }
+
+            if (!LooksLikeSha256(userToAdd.Password))
+            {
+                if (!securityService.ValidatePassword(userToAdd.Password, out string reason))
+                {
+                    throw new ArgumentException(reason ?? "密码不符合策略", nameof(userToAdd.Password));
+                }
+
+                userToAdd.Password = PasswordEncryptor.EncryptPassword(userToAdd.Password);
+            }
 
 
             try
@@ -241,11 +247,13 @@ namespace MDMUI.BLL
 
             try
             {
-                // 在业务逻辑层加密密码
-                string encryptedPassword = PasswordEncryptor.EncryptPassword(newPassword);
+                if (!securityService.ValidatePassword(newPassword, out string reason))
+                {
+                    throw new ArgumentException(reason ?? "密码不符合策略", nameof(newPassword));
+                }
 
-                // 调用DAL层执行密码重置
-                bool success = userDal.ResetPassword(userIdToReset, encryptedPassword);
+                // 调用DAL层执行密码重置（传入明文，由DAL负责加密）
+                bool success = userDal.ResetPassword(userIdToReset, newPassword);
 
                 if (success)
                 {
@@ -259,5 +267,11 @@ namespace MDMUI.BLL
                  throw; // Re-throw to UI layer
             }
         }
+
+        private static bool LooksLikeSha256(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || value.Length != 64) return false;
+            return value.All(Uri.IsHexDigit);
+        }
     }
-} 
+}
