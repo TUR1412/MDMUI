@@ -106,6 +106,16 @@
 - 列表字段补齐：上级部门/所属工厂/负责人显示（DAL JOIN + Model 扩展）
 - 加载列表使用 `AppTelemetry.Measure("department.load_list")` 记录耗时
 
+### 需求: 产品类别管理体验升级
+**模块:** Forms
+产品类别管理页面以运行时组合方式引入 Atomic Design（CardPanel + ActionToolbar + AppButton），统一标题与操作区；并提供树/列表空态提示与加载埋点（遵循开闭原则，不修改 Designer 结构）。
+
+#### 场景: 树浏览/子类别列表
+- 顶部统一卡片工具栏（标题 + 添加/编辑/删除/刷新）
+- 左侧树与右侧列表无数据时提供空态提示，避免界面空白
+- 加载树使用 `AppTelemetry.Measure("product_category.load_tree")` 记录耗时
+- 加载子类别使用 `AppTelemetry.Measure("product_category.load_subcategories")` 记录耗时
+
 ### 需求: 文件日志查看器
 **模块:** Forms
 提供应用内“诊断日志”的可视化查看能力，支持过滤、复制与外部打开，降低排障门槛。  

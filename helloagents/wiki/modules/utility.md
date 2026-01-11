@@ -6,7 +6,7 @@
 ## 模块概述
 - **职责:** 主题系统、偏好存储、审计日志、连接与参数辅助、诊断日志、崩溃兜底、性能埋点
 - **状态:** ✅稳定
-- **最后更新:** 2026-01-11
+- **最后更新:** 2026-01-12
 
 ## 规范
 
@@ -28,6 +28,15 @@
 - 记录使用次数与时间
 - 供排序与推荐
 
+### 需求: UI 错误边界（安全执行）
+**模块:** Utility
+为 WinForms 事件处理/用户操作提供统一的 try/catch 包装，记录诊断日志并在必要时提示用户，避免异常直接冒泡为“未处理异常”。
+
+#### 场景: 点击按钮/选择变更导致异常
+- 捕获异常并写入 `AppLog`（包含事件ID，便于日志定位）
+- 支持注入自定义 `onError`（便于单元测试或页面自定义提示）
+- 非 UI 消息循环环境下默认不弹窗（避免测试/后台任务卡住）
+
 ## API接口
 - ThemeManager.ApplyTo
 - GridStyler.Apply
@@ -40,6 +49,7 @@
 - AppLog.Initialize / Info / Warn / Error / Flush / Shutdown
 - CrashReporter.Report
 - AppTelemetry.Measure
+- UiSafe.Run / Wrap
 - PasswordGenerator.GenerateStrong / Generate
 
 ## 数据模型

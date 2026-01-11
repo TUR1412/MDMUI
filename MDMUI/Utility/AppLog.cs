@@ -53,7 +53,35 @@ namespace MDMUI.Utility
                 if (!enabled) return;
 
                 string configuredDir = GetSetting("MDMUI_LOG_DIR", "MDMUI.LogDirectory", defaultValue: null);
-                logDirectory = ResolveLogDirectory(configuredDir);
+                string resolvedDirectory = ResolveLogDirectory(configuredDir);
+
+                // 兼容“Initialize 之前已发生写日志”的场景：如果日志目录发生变化，
+                // 强制关闭旧 writer，避免继续写入旧目录。
+                lock (SyncRoot)
+                {
+                    bool directoryChanged = !string.Equals(
+                        logDirectory ?? string.Empty,
+                        resolvedDirectory ?? string.Empty,
+                        StringComparison.OrdinalIgnoreCase);
+
+                    logDirectory = resolvedDirectory;
+
+                    if (directoryChanged && writer != null)
+                    {
+                        try
+                        {
+                            writer.Flush();
+                            writer.Dispose();
+                        }
+                        catch { }
+                        finally
+                        {
+                            writer = null;
+                            currentLogFilePath = null;
+                            writerDate = DateTime.MinValue;
+                        }
+                    }
+                }
 
                 string maxMbRaw = GetSetting("MDMUI_LOG_MAX_MB", "MDMUI.LogMaxMB", defaultValue: "10");
                 if (int.TryParse(maxMbRaw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int maxMb) && maxMb > 0)

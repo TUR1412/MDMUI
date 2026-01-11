@@ -7,6 +7,8 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using MDMUI.BLL;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 using MDMUI.Model;
 using MDMUI.Utility;
 
@@ -18,6 +20,16 @@ namespace MDMUI
         private readonly string connectionString = DbConnectionHelper.GetConnectionString();
         private PermissionChecker permissionChecker;
 
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: do not rewrite Designer)
+        private bool modernLayoutInitialized;
+        private CardPanel modernHeaderCard;
+        private Label treeEmptyStateLabel;
+        private Label gridEmptyStateLabel;
+        private AppButton modernAddButton;
+        private AppButton modernEditButton;
+        private AppButton modernDeleteButton;
+        private AppButton modernRefreshButton;
+
         public FrmProductCategory(User user)
         {
             InitializeComponent();
@@ -25,8 +37,9 @@ namespace MDMUI
             permissionChecker = new PermissionChecker();
         }
 
-        private void FrmProductCategory_Load(object sender, EventArgs e)
+        private void FrmProductCategory_Load(object sender, EventArgs e)        
         {
+            InitializeModernLayout();
             this.dgvSubCategory.AutoGenerateColumns = true;
             LoadCategoryData();
             ApplyPermissions();
@@ -66,40 +79,292 @@ namespace MDMUI
             if (CurrentUser == null) return;
             bool isAdmin = CurrentUser.RoleName == "超级管理员";
 
-            if (this.toolStripLeft != null)
-            {
-                var btnAdd = this.btnAddCategory;
-                var btnEdit = this.btnEditCategory;
-                var btnDelete = this.btnDeleteCategory;
+            bool canAdd = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "add");
+            bool canEdit = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "edit");
+            bool canDelete = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "delete");
 
-                if (btnAdd != null) btnAdd.Visible = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "add");
-                if (btnEdit != null) btnEdit.Visible = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "edit");
-                if (btnDelete != null) btnDelete.Visible = isAdmin || permissionChecker.HasPermission(CurrentUser.Id, "product_category", "delete");
+            if (btnAddCategory != null) btnAddCategory.Visible = canAdd;
+            if (btnEditCategory != null) btnEditCategory.Visible = canEdit;
+            if (btnDeleteCategory != null) btnDeleteCategory.Visible = canDelete;
+
+            if (modernAddButton != null) modernAddButton.Visible = canAdd;
+            if (modernEditButton != null) modernEditButton.Visible = canEdit;
+            if (modernDeleteButton != null) modernDeleteButton.Visible = canDelete;
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmProductCategory.ModernLayout"))
+                {
+                    EnsureModernHeader();
+                    EnsureEmptyStates();
+                    EnsureStatusStrip();
+
+                    try { GridStyler.Apply(dgvSubCategory); } catch { }
+                    TryEnableGridDoubleBuffering(dgvSubCategory);
+
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+
+                    TryStyleTreeView(tvCategory);
+                    UpdateEmptyStates();
+                }
             }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化产品类别管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureModernHeader()
+        {
+            if (modernHeaderCard != null) return;
+
+            ToolStrip oldToolStrip = toolStripLeft;
+            ToolStripButton oldAdd = btnAddCategory;
+            ToolStripButton oldEdit = btnEditCategory;
+            ToolStripButton oldDelete = btnDeleteCategory;
+            ToolStripButton oldRefresh = btnRefreshTree;
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 72
+            };
+
+            ActionToolbar toolbar = new ActionToolbar { Dock = DockStyle.Fill };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = string.IsNullOrWhiteSpace(Text) ? "产品类别管理" : Text,
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 10, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(11f); } catch { }
+            toolbar.LeftPanel.Controls.Add(title);
+
+            modernAddButton = CreateAppButton(oldAdd?.Text ?? "添加类别", AppButtonVariant.Primary, UiSafe.Wrap("product_category.add", BtnAddCategory_Click), name: "btnAddCategory");
+            modernEditButton = CreateAppButton(oldEdit?.Text ?? "编辑类别", AppButtonVariant.Secondary, UiSafe.Wrap("product_category.edit", BtnEditCategory_Click), name: "btnEditCategory");
+            modernDeleteButton = CreateAppButton(oldDelete?.Text ?? "删除类别", AppButtonVariant.Danger, UiSafe.Wrap("product_category.delete", BtnDeleteCategory_Click), name: "btnDeleteCategory");
+            modernRefreshButton = CreateAppButton(oldRefresh?.Text ?? "刷新", AppButtonVariant.Secondary, UiSafe.Wrap("product_category.refresh", BtnRefreshTree_Click), name: "btnRefreshTree");
+
+            CopyToolStripState(oldAdd, modernAddButton);
+            CopyToolStripState(oldEdit, modernEditButton);
+            CopyToolStripState(oldDelete, modernDeleteButton);
+            CopyToolStripState(oldRefresh, modernRefreshButton);
+
+            toolbar.RightPanel.Controls.Add(modernAddButton);
+            toolbar.RightPanel.Controls.Add(modernEditButton);
+            toolbar.RightPanel.Controls.Add(modernDeleteButton);
+            toolbar.RightPanel.Controls.Add(modernRefreshButton);
+
+            header.Controls.Add(toolbar);
+
+            Controls.Add(header);
+            header.BringToFront();
+            modernHeaderCard = header;
+
+            // 旧标题栏/工具栏移除并释放（开闭原则：运行时替换，不动 Designer）
+            try
+            {
+                splitContainerMain?.Panel1?.Controls.Remove(panelLeftTitle);
+                splitContainerMain?.Panel1?.Controls.Remove(oldToolStrip);
+                splitContainerMain?.Panel2?.Controls.Remove(panelRightTitle);
+            }
+            catch
+            {
+                // ignore
+            }
+
+            try { panelLeftTitle?.Dispose(); } catch { }
+            try { panelRightTitle?.Dispose(); } catch { }
+            try { oldToolStrip?.Dispose(); } catch { }
+
+            panelLeftTitle = null;
+            lblLeftTitle = null;
+            panelRightTitle = null;
+            lblRightTitle = null;
+            toolStripLeft = null;
+
+            btnAddCategory = null;
+            btnEditCategory = null;
+            btnDeleteCategory = null;
+            btnRefreshTree = null;
+        }
+
+        private void EnsureEmptyStates()
+        {
+            if (treeEmptyStateLabel == null && splitContainerMain?.Panel1 != null)
+            {
+                treeEmptyStateLabel = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    ForeColor = ThemeManager.Palette.TextSecondary,
+                    BackColor = Color.Transparent,
+                    Visible = false
+                };
+                try { treeEmptyStateLabel.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+                splitContainerMain.Panel1.Controls.Add(treeEmptyStateLabel);
+                try { treeEmptyStateLabel.BringToFront(); } catch { }
+            }
+
+            if (gridEmptyStateLabel == null && splitContainerMain?.Panel2 != null)
+            {
+                gridEmptyStateLabel = new Label
+                {
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    ForeColor = ThemeManager.Palette.TextSecondary,
+                    BackColor = Color.Transparent,
+                    Visible = false
+                };
+                try { gridEmptyStateLabel.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+                splitContainerMain.Panel2.Controls.Add(gridEmptyStateLabel);
+                try { gridEmptyStateLabel.BringToFront(); } catch { }
+            }
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStripBottom == null) return;
+            try { statusStripBottom.SizingGrip = false; } catch { }
+        }
+
+        private static void TryEnableGridDoubleBuffering(DataGridView grid)
+        {
+            if (grid == null) return;
+
+            try
+            {
+                typeof(DataGridView).GetProperty(
+                        "DoubleBuffered",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                    ?.SetValue(grid, true, null);
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        private static void TryStyleTreeView(TreeView tree)
+        {
+            if (tree == null) return;
+
+            try { tree.BorderStyle = BorderStyle.None; } catch { }
+            try { tree.BackColor = ThemeManager.Palette.Surface; } catch { }
+            try { tree.ForeColor = ThemeManager.Palette.TextPrimary; } catch { }
+        }
+
+        private void UpdateEmptyStates(int? gridCountOverride = null)
+        {
+            int treeCount = 0;
+            try { treeCount = tvCategory?.GetNodeCount(includeSubTrees: true) ?? 0; } catch { }
+
+            bool treeEmpty = treeCount <= 0;
+            if (treeEmptyStateLabel != null)
+            {
+                treeEmptyStateLabel.Text = "暂无产品类别";
+                treeEmptyStateLabel.Visible = treeEmpty;
+                if (treeEmpty) { try { treeEmptyStateLabel.BringToFront(); } catch { } }
+            }
+
+            int gridCount = 0;
+            if (gridCountOverride.HasValue)
+            {
+                gridCount = gridCountOverride.Value;
+            }
+            else
+            {
+                try
+                {
+                    gridCount = dgvSubCategory?.Rows?.Count ?? 0;
+                    if (dgvSubCategory != null && dgvSubCategory.AllowUserToAddRows) gridCount = Math.Max(0, gridCount - 1);
+                }
+                catch
+                {
+                    gridCount = 0;
+                }
+            }
+
+            bool gridEmpty = gridCount <= 0;
+            if (gridEmptyStateLabel != null)
+            {
+                gridEmptyStateLabel.Text = treeEmpty ? "请先添加产品类别" : "暂无子类别";
+                gridEmptyStateLabel.Visible = gridEmpty;
+                if (gridEmpty) { try { gridEmptyStateLabel.BringToFront(); } catch { } }
+            }
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick, string name)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                button.Name = name.Trim();
+            }
+
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyToolStripState(ToolStripItem source, Control target)
+        {
+            if (source == null || target == null) return;
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
         }
 
         private void LoadCategoryData()
         {
             try
             {
-                UpdateStatus("正在加载产品类别...");
-                this.tvCategory.Nodes.Clear();
-                List<ProductCategory> categories = GetAllCategories();
-                var categoryMap = categories.ToDictionary(c => c.CategoryId);
-
-                BuildCategoryTree(categories, null, null, categoryMap);
-
-                this.tvCategory.ExpandAll();
-                if (this.tvCategory.SelectedNode == null)
+                using (AppTelemetry.Measure("product_category.load_tree"))
                 {
-                    LoadSubCategoriesGridView(null);
+                    UpdateStatus("正在加载产品类别...");
+                    this.tvCategory.Nodes.Clear();
+                    List<ProductCategory> categories = GetAllCategories();
+                    var categoryMap = categories.ToDictionary(c => c.CategoryId);
+
+                    BuildCategoryTree(categories, null, null, categoryMap);
+
+                    this.tvCategory.ExpandAll();
+                    if (this.tvCategory.SelectedNode == null)
+                    {
+                        LoadSubCategoriesGridView(null);
+                    }
+                    UpdateStatus("产品类别加载完成。");
+                    UpdateEmptyStates();
                 }
-                UpdateStatus("产品类别加载完成。");
             }
             catch (Exception ex)
             {
                 MessageBox.Show("加载产品类别数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try { AppLog.Error(ex, "加载产品类别数据失败"); } catch { }
                 UpdateStatus("加载失败。");
+                UpdateEmptyStates(0);
             }
         }
 
@@ -151,39 +416,45 @@ namespace MDMUI
         {
             try
             {
-                List<ProductCategory> subCategories = new List<ProductCategory>();
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                using (AppTelemetry.Measure("product_category.load_subcategories"))
                 {
-                    conn.Open();
-                    string sql = "SELECT CategoryId, CategoryName, ParentCategoryId, Description, CreateTime FROM ProductCategory WHERE ParentCategoryId = @ParentId ORDER BY CategoryName";
-                    SqlCommand cmd = new SqlCommand(sql, conn);
-                    cmd.Parameters.Add("@ParentId", SqlDbType.VarChar, 36).Value = parentCategoryId ?? (object)DBNull.Value;
-
-                    SqlDataReader reader = cmd.ExecuteReader();
-                    while (reader.Read())
+                    List<ProductCategory> subCategories = new List<ProductCategory>();
+                    using (SqlConnection conn = new SqlConnection(connectionString))
                     {
-                        string categoryNameFromReader = reader["CategoryName"].ToString();
-                        string categoryIdFromReader = reader["CategoryId"].ToString();
+                        conn.Open();
+                        string sql = "SELECT CategoryId, CategoryName, ParentCategoryId, Description, CreateTime FROM ProductCategory WHERE ParentCategoryId = @ParentId ORDER BY CategoryName";
+                        SqlCommand cmd = new SqlCommand(sql, conn);
+                        cmd.Parameters.Add("@ParentId", SqlDbType.VarChar, 36).Value = parentCategoryId ?? (object)DBNull.Value;
 
-                        subCategories.Add(new ProductCategory
+                        SqlDataReader reader = cmd.ExecuteReader();
+                        while (reader.Read())
                         {
-                            CategoryId = categoryIdFromReader,
-                            CategoryName = categoryNameFromReader,
-                            ParentCategoryId = reader["ParentCategoryId"] != DBNull.Value ? reader["ParentCategoryId"].ToString() : null,
-                            Description = reader["Description"] != DBNull.Value ? reader["Description"].ToString() : null,
-                            CreateTime = Convert.ToDateTime(reader["CreateTime"])
-                        });
-                    }
-                }
-                this.dgvSubCategory.DataSource = subCategories;
+                            string categoryNameFromReader = reader["CategoryName"].ToString();
+                            string categoryIdFromReader = reader["CategoryId"].ToString();
 
-                UpdateStatus($"显示 {(parentCategoryId == null ? "顶级" : $"类别 {parentCategoryId} 的")} 子类别 ({subCategories.Count} 项)");
+                            subCategories.Add(new ProductCategory
+                            {
+                                CategoryId = categoryIdFromReader,
+                                CategoryName = categoryNameFromReader,
+                                ParentCategoryId = reader["ParentCategoryId"] != DBNull.Value ? reader["ParentCategoryId"].ToString() : null,
+                                Description = reader["Description"] != DBNull.Value ? reader["Description"].ToString() : null,
+                                CreateTime = Convert.ToDateTime(reader["CreateTime"])
+                            });
+                        }
+                    }
+                    this.dgvSubCategory.DataSource = subCategories;
+
+                    UpdateStatus($"显示 {(parentCategoryId == null ? "顶级" : $"类别 {parentCategoryId} 的")} 子类别 ({subCategories.Count} 项)");
+                    UpdateEmptyStates(subCategories.Count);
+                }
             }
             catch (Exception ex)
             {
                 MessageBox.Show("加载子类别数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try { AppLog.Error(ex, $"加载子类别失败: parent={parentCategoryId ?? "(null)"}"); } catch { }
                 UpdateStatus("子类别加载失败。");
                 this.dgvSubCategory.DataSource = null;
+                UpdateEmptyStates(0);
             }
         }
 

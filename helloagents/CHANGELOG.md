@@ -14,6 +14,7 @@
 - IThemeSelfStyled：主题系统的“自绘控件自管理”标记接口（避免覆盖关键样式）
 - ActionToolbar：Atomic Design Molecule（输入区 + 操作区布局）
 - UiThemingBootstrapper：全局自动应用主题与微交互（避免逐窗体遗漏）
+- UiSafe：UI 事件安全执行（错误边界），捕获异常并写入 AppLog（可选弹窗提示）
 - LogFileService：日志文件列表与 tail 读取（支持共享读写）
 - FrmFileLogViewer：应用内诊断日志查看器（过滤/复制/外部打开）
 - MSTest 单元测试工程 `MDMUI.Tests` 与 `scripts/test.ps1`
@@ -32,6 +33,7 @@
 - 区域管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏提示并补充埋点
 - 工厂管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏与加载埋点，并将加载异常写入 AppLog
 - 产品管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏与搜索埋点，并统一按钮/标签文本避免乱码
+- 产品类别管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增树/列表空态提示并补充加载埋点
 - 部门管理：运行时引入 CardPanel + ActionToolbar 工具栏，新增空态/状态栏与加载埋点，并补齐列表显示字段（上级部门/所属工厂/负责人）
 - 区域管理：运行时替换旧控件后清理已释放引用，降低后续误用风险
 
