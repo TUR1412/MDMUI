@@ -8,6 +8,8 @@ using MDMUI.BLL;
 using MDMUI.Model;
 using MDMUI.Utility;
 using System.Linq;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 
 namespace MDMUI
 {
@@ -23,23 +25,305 @@ namespace MDMUI
         // 区域服务
         private AreaService areaService; // 添加 AreaService 引用
 
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: do not rewrite Designer)
+        private bool modernLayoutInitialized;
+        private CardPanel headerCard;
+        private Label headerInfoLabel;
+        private Panel treeHostPanel;
+        private Label treeEmptyStateLabel;
+        private StatusStrip statusStrip;
+        private ToolStripStatusLabel statusLabel;
+
         public FrmArea(User user)
         {
             InitializeComponent();
             this.currentUser = user;
             this.permissionChecker = new PermissionChecker();
             this.areaService = new AreaService(); // 初始化 AreaService
+
+            InitializeModernLayout();
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmArea.ModernLayout"))
+                {
+                    EnsureHeaderCard();
+                    EnsureTreeEmptyState();
+                    EnsureStatusStrip();
+
+                    UpdateHeaderInfo();
+                    UpdateTreeIndicators(0);
+
+                    // UiThemingBootstrapper 只对窗体执行一次；这里确保运行时新增控件也能吃到统一风格
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化区域管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureHeaderCard()
+        {
+            if (headerCard != null) return;
+
+            Label oldTitle = lblTitle;
+            Label oldInfo = lblInfo;
+            Panel oldToolPanel = toolPanel;
+
+            Button oldAdd = btnAdd;
+            Button oldEdit = btnEdit;
+            Button oldDelete = btnDelete;
+            Button oldRefresh = btnRefresh;
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 128
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            header.Controls.Add(layout);
+
+            ActionToolbar actionsToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = string.IsNullOrWhiteSpace(Text) ? (oldTitle?.Text ?? "区域管理") : Text,
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 12, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(12f); } catch { }
+            actionsToolbar.LeftPanel.Controls.Add(title);
+
+            AppButton add = CreateAppButton(oldAdd?.Text ?? "添加", AppButtonVariant.Primary, BtnAdd_Click, name: "btnAdd");
+            AppButton edit = CreateAppButton(oldEdit?.Text ?? "编辑", AppButtonVariant.Secondary, BtnEdit_Click, name: "btnEdit");
+            AppButton delete = CreateAppButton(oldDelete?.Text ?? "删除", AppButtonVariant.Danger, BtnDelete_Click, name: "btnDelete");
+            AppButton refresh = CreateAppButton(oldRefresh?.Text ?? "刷新", AppButtonVariant.Secondary, BtnRefresh_Click, name: "btnRefresh");
+
+            CopyButtonState(oldAdd, add);
+            CopyButtonState(oldEdit, edit);
+            CopyButtonState(oldDelete, delete);
+            CopyButtonState(oldRefresh, refresh);
+
+            btnAdd = add;
+            btnEdit = edit;
+            btnDelete = delete;
+            btnRefresh = refresh;
+
+            actionsToolbar.RightPanel.Controls.Add(add);
+            actionsToolbar.RightPanel.Controls.Add(edit);
+            actionsToolbar.RightPanel.Controls.Add(delete);
+            actionsToolbar.RightPanel.Controls.Add(refresh);
+
+            Label info = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                AutoEllipsis = true,
+                Margin = new Padding(0)
+            };
+            try { info.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+            headerInfoLabel = info;
+
+            layout.Controls.Add(actionsToolbar, 0, 0);
+            layout.Controls.Add(info, 0, 1);
+
+            Controls.Add(header);
+            header.BringToFront();
+            headerCard = header;
+
+            // 移除并释放旧控件（运行时替换，保持 Designer 不动）
+            try { if (oldTitle != null) Controls.Remove(oldTitle); } catch { }
+            try { if (oldInfo != null) Controls.Remove(oldInfo); } catch { }
+            try { if (oldToolPanel != null) Controls.Remove(oldToolPanel); } catch { }
+
+            try { oldTitle?.Dispose(); } catch { }
+            try { oldInfo?.Dispose(); } catch { }
+            try { oldToolPanel?.Dispose(); } catch { }
+
+            // 避免后续误用已释放控件引用
+            lblTitle = null;
+            lblInfo = null;
+            toolPanel = null;
+        }
+
+        private void EnsureTreeEmptyState()
+        {
+            if (treeHostPanel != null) return;
+            if (splitContainer == null || treeView == null) return;
+
+            Control panel1 = splitContainer.Panel1;
+            if (panel1 == null) return;
+
+            try { panel1.Controls.Remove(treeView); } catch { }
+
+            Panel host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+
+            try
+            {
+                treeView.Dock = DockStyle.Fill;
+                treeView.BorderStyle = BorderStyle.None;
+            }
+            catch { }
+
+            host.Controls.Add(treeView);
+
+            Label empty = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            try { empty.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+            host.Controls.Add(empty);
+            try { empty.BringToFront(); } catch { }
+
+            panel1.Controls.Add(host);
+
+            treeHostPanel = host;
+            treeEmptyStateLabel = empty;
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStrip != null) return;
+
+            StatusStrip strip = new StatusStrip
+            {
+                Dock = DockStyle.Bottom,
+                SizingGrip = false
+            };
+
+            ToolStripStatusLabel label = new ToolStripStatusLabel { Text = "就绪" };
+            strip.Items.Add(label);
+
+            Controls.Add(strip);
+
+            statusStrip = strip;
+            statusLabel = label;
+        }
+
+        private void UpdateHeaderInfo()
+        {
+            string username = currentUser?.Username ?? "-";
+            string factoryId = currentUser?.FactoryId ?? "-";
+
+            string text = $"当前用户: {username}，工厂ID: {factoryId}";
+
+            if (headerInfoLabel != null)
+            {
+                headerInfoLabel.Text = text;
+            }
+            else if (lblInfo != null)
+            {
+                lblInfo.Text = text;
+            }
+        }
+
+        private void UpdateStatus(string message)
+        {
+            if (statusLabel != null)
+            {
+                statusLabel.Text = string.IsNullOrWhiteSpace(message) ? "就绪" : message.Trim();
+            }
+        }
+
+        private void UpdateTreeIndicators(int areaCount)
+        {
+            if (treeEmptyStateLabel != null)
+            {
+                if (areaCount <= 0)
+                {
+                    treeEmptyStateLabel.Text = "暂无区域数据";
+                    treeEmptyStateLabel.Visible = true;
+                    try { treeEmptyStateLabel.BringToFront(); } catch { }
+                }
+                else
+                {
+                    treeEmptyStateLabel.Visible = false;
+                }
+            }
+
+            if (areaCount <= 0)
+            {
+                UpdateStatus("暂无区域数据");
+            }
+            else
+            {
+                UpdateStatus($"共 {areaCount} 个区域");
+            }
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick, string name)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                button.Name = name.Trim();
+            }
+
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyButtonState(Button source, Button target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+            try { target.TabIndex = source.TabIndex; } catch { }
         }
 
         private void FrmArea_Load(object sender, EventArgs e)
         {
             try
             {
-                // Update lblInfo text if needed, assuming lblInfo is created in Designer
-                if (this.lblInfo != null) // Check if lblInfo exists (created by Designer)
-                {
-                   this.lblInfo.Text = $"当前用户: {currentUser.Username}, 工厂ID: {currentUser.FactoryId}";
-                }
+                UpdateHeaderInfo();
 
                 // Load data and apply permissions
                 LoadData();
@@ -87,21 +371,33 @@ namespace MDMUI
         {
             try
             {
-                // 不再需要 EnsureAreaTableExists()
-                treeView.Nodes.Clear();
-                // 从 AreaService 获取数据
-                List<Area> areas = areaService.GetAllAreas();
+                using (AppTelemetry.Measure("area.load_tree"))
+                {
+                    // 不再需要 EnsureAreaTableExists()
+                    treeView.Nodes.Clear();
 
-                // 使用 Area 对象构建树
-                BuildAreaTree(areas, null, null);
-                treeView.ExpandAll();
+                    // 从 AreaService 获取数据
+                    List<Area> areas = areaService.GetAllAreas();
+                    int count = areas?.Count ?? 0;
 
-                // 清空详细信息或加载根节点（如果需要）
-                LoadAreaDetails(null);
+                    // 使用 Area 对象构建树
+                    if (count > 0)
+                    {
+                        BuildAreaTree(areas, null, null);
+                        treeView.ExpandAll();
+                    }
+
+                    // 清空详细信息或加载根节点（如果需要）
+                    LoadAreaDetails(null);
+
+                    UpdateTreeIndicators(count);
+                }
             }
             catch (Exception ex)
             {
+                AppLog.Error(ex, "加载区域数据失败");
                 MessageBox.Show("加载区域数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateTreeIndicators(0);
             }
         }
 
@@ -137,16 +433,18 @@ namespace MDMUI
             }
         }
 
-        private void TreeView_AfterSelect(object sender, TreeViewEventArgs e)
+        private void TreeView_AfterSelect(object sender, TreeViewEventArgs e)   
         {
             if (e.Node != null && e.Node.Tag != null)
             {
                 string selectedAreaId = e.Node.Tag.ToString();
                 LoadAreaDetails(selectedAreaId);
+                UpdateStatus($"已选择: {e.Node.Text}");
             }
             else
             {
                 LoadAreaDetails(null); // 清空详细信息
+                UpdateStatus("请选择区域查看详情");
             }
         }
 
@@ -174,47 +472,58 @@ namespace MDMUI
                 lblParent.Text = "";
                 lblPostal.Text = "";
                 lblRemark.Text = "";
+                UpdateStatus("请选择区域查看详情");
                 return;
             }
 
             try
             {
-                Area area = areaService.GetAreaById(areaId);
+                using (AppTelemetry.Measure("area.load_details"))
+                {
+                    Area area = areaService.GetAreaById(areaId);
 
-                if (area != null)
-                {
-                    lblId.Text = area.AreaId;
-                    lblName.Text = area.AreaName;
-                    // 获取父区域名称 (需要额外调用或优化查询)
-                    string parentName = "(无)";
-                    if (!string.IsNullOrEmpty(area.ParentAreaId))
+                    if (area != null)
                     {
-                         Area parentArea = areaService.GetAreaById(area.ParentAreaId);
-                         if (parentArea != null)
-                         {
-                             parentName = parentArea.AreaName;
-                         } else {
-                             parentName = $"(ID: {area.ParentAreaId} 未找到)";
-                         }
+                        lblId.Text = area.AreaId;
+                        lblName.Text = area.AreaName;
+
+                        // 获取父区域名称 (需要额外调用或优化查询)
+                        string parentName = "(无)";
+                        if (!string.IsNullOrEmpty(area.ParentAreaId))
+                        {
+                            Area parentArea = areaService.GetAreaById(area.ParentAreaId);
+                            if (parentArea != null)
+                            {
+                                parentName = parentArea.AreaName;
+                            }
+                            else
+                            {
+                                parentName = $"(ID: {area.ParentAreaId} 未找到)";
+                            }
+                        }
+
+                        lblParent.Text = parentName;
+                        lblPostal.Text = area.PostalCode ?? "";
+                        lblRemark.Text = area.Remark ?? "";
                     }
-                    lblParent.Text = parentName;
-                    lblPostal.Text = area.PostalCode ?? "";
-                    lblRemark.Text = area.Remark ?? "";
-                }
-                else
-                {
-                     MessageBox.Show("无法加载所选区域的详细信息。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                     // 清空显示
-                    lblId.Text = "";
-                    lblName.Text = "";
-                    lblParent.Text = "";
-                    lblPostal.Text = "";
-                    lblRemark.Text = "";
+                    else
+                    {
+                        AppLog.Warn($"无法加载所选区域详情: areaId={areaId}");
+                        UpdateStatus("无法加载所选区域详情");
+
+                        // 清空显示
+                        lblId.Text = "";
+                        lblName.Text = "";
+                        lblParent.Text = "";
+                        lblPostal.Text = "";
+                        lblRemark.Text = "";
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("加载区域详情失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AppLog.Error(ex, $"加载区域详情失败: areaId={areaId}");
+                UpdateStatus("加载区域详情失败");
             }
         }
 

@@ -7,6 +7,8 @@ using MDMUI.Model;
 using MDMUI.Utility;
 using System.Linq;
 using System.Collections.Generic;
+using MDMUI.Controls.Atoms;
+using MDMUI.Controls.Molecules;
 
 namespace MDMUI
 {
@@ -19,6 +21,14 @@ namespace MDMUI
         // 工厂服务
         private FactoryService factoryService;
 
+        // Modern UI (Atomic Design) - runtime enhancement (OCP: do not rewrite Designer)
+        private bool modernLayoutInitialized;
+        private CardPanel modernHeaderCard;
+        private Panel gridHostPanel;
+        private Label emptyStateLabel;
+        private StatusStrip statusStrip;
+        private ToolStripStatusLabel statusLabel;
+
         public FrmFactory(User user)
         {
             InitializeComponent();
@@ -27,21 +37,291 @@ namespace MDMUI
             this.factoryService = new FactoryService(); // 初始化 FactoryService
             this.Load += FrmFactory_Load;
 
-            // Configure DataGridView columns - 最好在这里或Designer中配置一次
+            // Configure DataGridView columns - 最好在这里或Designer中配置一次  
             ConfigureDataGridView();
+
+            InitializeModernLayout();
             SetButtonVisibility();
+        }
+
+        private void InitializeModernLayout()
+        {
+            if (modernLayoutInitialized) return;
+            modernLayoutInitialized = true;
+
+            try
+            {
+                using (AppTelemetry.Measure("FrmFactory.ModernLayout"))
+                {
+                    EnsureModernHeader();
+                    EnsureGridHostAndEmptyState();
+                    EnsureStatusStrip();
+
+                    // UiThemingBootstrapper 只对窗体执行一次；这里确保运行时新
+                    // 增控件也能吃到统一风格
+                    try { ThemeManager.ApplyTo(this); } catch { }
+                    try { ModernTheme.EnableMicroInteractions(this); } catch { }
+
+                    UpdateFactoryListIndicators(textBoxSearch?.Text, dataGridView1?.Rows?.Count ?? 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                try { AppLog.Error(ex, "初始化工厂管理现代化布局失败"); } catch { }
+            }
+        }
+
+        private void EnsureModernHeader()
+        {
+            if (modernHeaderCard != null) return;
+
+            Panel oldToolPanel = panelTool;
+            Panel oldSearchPanel = panelSearch;
+
+            Button oldAdd = buttonAdd;
+            Button oldEdit = buttonEdit;
+            Button oldDelete = buttonDelete;
+            Button oldRefresh = buttonRefresh;
+            Button oldSearch = buttonSearch;
+
+            // 先把需要保留的输入框迁移出来，避免旧 Panel Dispose 时连带释放
+            try
+            {
+                if (textBoxSearch?.Parent != null)
+                {
+                    textBoxSearch.Parent.Controls.Remove(textBoxSearch);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+
+            CardPanel header = new CardPanel
+            {
+                Dock = DockStyle.Top,
+                Padding = new Padding(12),
+                Height = 132
+            };
+
+            TableLayoutPanel layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+            header.Controls.Add(layout);
+
+            ActionToolbar actionsToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+            ActionToolbar searchToolbar = new ActionToolbar { Dock = DockStyle.Fill };
+
+            Label title = new Label
+            {
+                AutoSize = true,
+                Text = string.IsNullOrWhiteSpace(Text) ? "工厂管理" : Text,
+                ForeColor = ThemeManager.Palette.TextPrimary,
+                Margin = new Padding(0, 10, 12, 0)
+            };
+            try { title.Font = ThemeManager.CreateTitleFont(11f); } catch { }
+            actionsToolbar.LeftPanel.Controls.Add(title);
+
+            AppButton add = CreateAppButton(oldAdd?.Text ?? "添加", AppButtonVariant.Primary, BtnAdd_Click, name: "buttonAdd");
+            AppButton edit = CreateAppButton(oldEdit?.Text ?? "编辑", AppButtonVariant.Secondary, BtnEdit_Click, name: "buttonEdit");
+            AppButton delete = CreateAppButton(oldDelete?.Text ?? "删除", AppButtonVariant.Danger, BtnDelete_Click, name: "buttonDelete");
+            AppButton refresh = CreateAppButton(oldRefresh?.Text ?? "刷新", AppButtonVariant.Secondary, BtnRefresh_Click, name: "buttonRefresh");
+            AppButton search = CreateAppButton(oldSearch?.Text ?? "搜索", AppButtonVariant.Primary, BtnSearch_Click, name: "buttonSearch");
+
+            CopyButtonState(oldAdd, add);
+            CopyButtonState(oldEdit, edit);
+            CopyButtonState(oldDelete, delete);
+            CopyButtonState(oldRefresh, refresh);
+            CopyButtonState(oldSearch, search);
+
+            buttonAdd = add;
+            buttonEdit = edit;
+            buttonDelete = delete;
+            buttonRefresh = refresh;
+            buttonSearch = search;
+
+            actionsToolbar.RightPanel.Controls.Add(add);
+            actionsToolbar.RightPanel.Controls.Add(edit);
+            actionsToolbar.RightPanel.Controls.Add(delete);
+            actionsToolbar.RightPanel.Controls.Add(refresh);
+
+            Label searchLabel = new Label
+            {
+                AutoSize = true,
+                Text = "工厂名称",
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                Margin = new Padding(0, 10, 8, 0)
+            };
+            searchToolbar.LeftPanel.Controls.Add(searchLabel);
+
+            if (textBoxSearch != null)
+            {
+                textBoxSearch.Width = Math.Max(220, textBoxSearch.Width);
+                textBoxSearch.Margin = new Padding(0, 8, 8, 0);
+                searchToolbar.LeftPanel.Controls.Add(textBoxSearch);
+            }
+
+            searchToolbar.RightPanel.Controls.Add(search);
+
+            layout.Controls.Add(actionsToolbar, 0, 0);
+            layout.Controls.Add(searchToolbar, 0, 1);
+
+            // 维持 Dock 计算顺序：Fill 控件需保持较低 z-order
+            Controls.Add(header);
+            header.BringToFront();
+            modernHeaderCard = header;
+
+            // 旧控件移除并释放（开闭原则：运行时替换，不动 Designer）
+            try { if (oldToolPanel != null) Controls.Remove(oldToolPanel); } catch { }
+            try { if (oldSearchPanel != null) Controls.Remove(oldSearchPanel); } catch { }
+
+            try { oldToolPanel?.Dispose(); } catch { }
+            try { oldSearchPanel?.Dispose(); } catch { }
+        }
+
+        private void EnsureGridHostAndEmptyState()
+        {
+            if (gridHostPanel != null) return;
+            if (dataGridView1 == null) return;
+
+            int gridIndex = 0;
+            try { gridIndex = Controls.GetChildIndex(dataGridView1); } catch { }
+
+            try { Controls.Remove(dataGridView1); } catch { }
+
+            Panel host = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+
+            dataGridView1.Dock = DockStyle.Fill;
+            host.Controls.Add(dataGridView1);
+
+            Label empty = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = ThemeManager.Palette.TextSecondary,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            try { empty.Font = ThemeManager.CreateBodyFont(9f); } catch { }
+
+            host.Controls.Add(empty);
+            try { empty.BringToFront(); } catch { }
+
+            Controls.Add(host);
+            try { Controls.SetChildIndex(host, gridIndex); } catch { }
+
+            gridHostPanel = host;
+            emptyStateLabel = empty;
+        }
+
+        private void EnsureStatusStrip()
+        {
+            if (statusStrip != null) return;
+
+            StatusStrip strip = new StatusStrip
+            {
+                Dock = DockStyle.Bottom,
+                SizingGrip = false
+            };
+
+            ToolStripStatusLabel label = new ToolStripStatusLabel { Text = "就绪" };
+            strip.Items.Add(label);
+
+            Controls.Add(strip);
+
+            statusStrip = strip;
+            statusLabel = label;
+        }
+
+        private void UpdateFactoryListIndicators(string searchTerm, int count)
+        {
+            string normalized = string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm.Trim();
+
+            if (statusLabel != null)
+            {
+                if (count <= 0)
+                {
+                    statusLabel.Text = string.IsNullOrWhiteSpace(normalized) ? "暂无工厂数据" : $"未找到匹配工厂：{normalized}";
+                }
+                else
+                {
+                    statusLabel.Text = string.IsNullOrWhiteSpace(normalized) ? $"共 {count} 个工厂" : $"匹配 {count} 个工厂";
+                }
+            }
+
+            if (emptyStateLabel != null)
+            {
+                if (count <= 0)
+                {
+                    emptyStateLabel.Text = string.IsNullOrWhiteSpace(normalized) ? "暂无工厂数据" : "未找到匹配的工厂";
+                    emptyStateLabel.Visible = true;
+                    try { emptyStateLabel.BringToFront(); } catch { }
+                }
+                else
+                {
+                    emptyStateLabel.Visible = false;
+                }
+            }
+        }
+
+        private static AppButton CreateAppButton(string text, AppButtonVariant variant, EventHandler onClick, string name)
+        {
+            AppButton button = new AppButton
+            {
+                Text = text,
+                Variant = variant
+            };
+
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                button.Name = name.Trim();
+            }
+
+            // 默认 AutoSize=true，FlowLayoutPanel 下表现更稳定
+            try { button.AutoSize = true; } catch { }
+            try { button.MinimumSize = new Size(86, 34); } catch { }
+
+            if (onClick != null)
+            {
+                button.Click += onClick;
+            }
+
+            return button;
+        }
+
+        private static void CopyButtonState(Button source, Button target)
+        {
+            if (source == null || target == null) return;
+
+            try { target.Visible = source.Visible; } catch { }
+            try { target.Enabled = source.Enabled; } catch { }
+            try { target.TabIndex = source.TabIndex; } catch { }
         }
 
         private void FrmFactory_Load(object sender, EventArgs e)
         {
             try
             {
-                Console.WriteLine($"工厂管理窗体加载 - 用户: {currentUser.Username}, 工厂: {currentUser.FactoryId}");
+                AppLog.Info($"工厂管理窗体加载 - 用户: {currentUser?.Username ?? "-"}, 工厂: {currentUser?.FactoryId ?? "-"}");
                 LoadData();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"工厂管理窗体加载错误: {ex.Message}");
+                AppLog.Error(ex, "工厂管理窗体加载错误");
                 MessageBox.Show($"窗体加载时发生错误: {ex.Message}", "加载错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -122,20 +402,27 @@ namespace MDMUI
         {
             try
             {
-                List<Factory> factories = factoryService.GetFactories(currentUser, searchTerm);
-                
-                // 使用 BindingSource 以获得更好的数据绑定体验
-                BindingSource bindingSource = new BindingSource();
-                bindingSource.DataSource = factories;
-                this.dataGridView1.DataSource = bindingSource;
+                using (AppTelemetry.Measure("factory.load_list"))
+                {
+                    List<Factory> factories = factoryService.GetFactories(currentUser, searchTerm);
 
-                // 更新状态或日志
-                Console.WriteLine($"已加载 {factories.Count} 个工厂数据。");
+                    // 使用 BindingSource 以获得更好的数据绑定体验
+                    BindingSource bindingSource = new BindingSource();
+                    bindingSource.DataSource = factories;
+                    this.dataGridView1.DataSource = bindingSource;
+
+                    int count = factories?.Count ?? 0;
+                    UpdateFactoryListIndicators(searchTerm, count);
+
+                    AppLog.Info($"已加载 {count} 个工厂数据。");
+                }
             }
             catch (Exception ex)
             {
+                AppLog.Error(ex, "加载工厂数据失败");
                 MessageBox.Show("加载数据失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                 this.dataGridView1.DataSource = null; // 出错时清空 DGV
+                this.dataGridView1.DataSource = null; // 出错时清空 DGV
+                UpdateFactoryListIndicators(searchTerm, 0);
             }
         }
 
